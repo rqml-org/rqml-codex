@@ -1,0 +1,1319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  requirements.rqml — rqml-codex specified in RQML (more dogfooding).
+
+  This document specifies the OpenAI Codex plugin that turns the deterministic
+  primitives of the RQML toolchain (rqml check / status / show / impact / link,
+  the @rqml/mcp server) into an enforced spec-first development loop inside
+  Codex. It is the Codex sibling of rqml-claude (RQML-CLAUDE-001), whose
+  governance issue ISS-OTHER-AGENTS deliberately scoped adapters for other
+  agent hosts into their own repositories; this is the Codex one.
+
+  The shape is the same — anchor at session start, validate spec edits as they
+  happen, gate completion on the rqml check verdict — but the host differs in
+  ways this spec captures from the documented Codex capabilities (June 2026):
+
+  * Codex hooks (SessionStart, PostToolUse on apply_patch, Stop with
+    decision:"block" and stop_hook_active loop protection) support the triad,
+    so enforcement remains hook-based, not instruction-based.
+  * Codex custom prompts are deprecated and not plugin-distributable, so the
+    command surfaces (init, status, check) ship as skills, invocable
+    explicitly ($name) or via implicit matching.
+  * Plugin-bundled hooks are non-managed: Codex executes them only after the
+    developer explicitly trusts them (/hooks, hash-based retrust). Enforcement
+    is therefore degraded until trust is granted, and the plugin must be
+    honest about that state rather than imply protection that is not active.
+
+  The spec leads the code: implementation coverage is zero by design at this
+  draft (see ISS-IMPL-ZERO), and implements/verifiedBy edges to artifacts will
+  be recorded with `rqml link` as each piece lands.
+-->
+<rqml xmlns="https://rqml.org/schema/2.1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="https://rqml.org/schema/2.1.0 https://rqml.org/schema/rqml-2.1.0.xsd"
+      version="2.1.0" docId="RQML-CODEX-001" status="draft">
+
+  <!-- ============================================================= -->
+  <!-- META                                                          -->
+  <!-- ============================================================= -->
+  <meta>
+    <title>rqml-codex — RQML spec-first enforcement for OpenAI Codex</title>
+    <system>rqml-codex</system>
+    <summary>
+      A Codex plugin that makes spec-first development enforced rather than
+      voluntary. Deterministic hooks anchor every session on the project spec,
+      validate spec edits as they happen, and gate turn completion on the rqml
+      check verdict; bundled skills and the @rqml/mcp server give the agent
+      the full read/record loop (show, impact, link, skeleton). The plugin
+      contains no requirements logic of its own: every verdict comes from the
+      rqml CLI, so what blocks the agent locally is exactly what blocks CI.
+      Because Codex executes plugin hooks only after the developer trusts
+      them, the plugin tracks whether enforcement is actually live and says so
+      when it is not.
+    </summary>
+    <authors>
+      <author>
+        <name>Garðar Guðgeirsson</name>
+        <role>RQML Maintainer</role>
+        <org>rqml.org</org>
+        <contact>https://github.com/gudgeirsson</contact>
+      </author>
+    </authors>
+    <dates>
+      <created>2026-06-12</created>
+      <updated>2026-06-12</updated>
+    </dates>
+    <conventions>
+      <normativeKeywords>
+        MUST, MUST NOT, SHALL, SHALL NOT, SHOULD, SHOULD NOT, and MAY are to be
+        interpreted as described in RFC 2119 / RFC 8174, mapped to the RQML
+        PriorityType vocabulary (must / should / may).
+      </normativeKeywords>
+      <idConventions>
+        IDs follow the upstream conventions: REQ-&lt;NAME&gt; for requirements,
+        GOAL-/QGOAL- for goals, ENT- for entities, SM-/ST-/TR- for behavior,
+        TC- for tests, DEC- for decisions, RISK-/OBS- for risks and obstacles.
+      </idConventions>
+    </conventions>
+  </meta>
+
+  <!-- ============================================================= -->
+  <!-- CATALOGS                                                      -->
+  <!-- ============================================================= -->
+  <catalogs>
+    <actors>
+      <actor id="ACT-AGENT" name="Codex Agent" type="system">
+        <description>
+          The OpenAI Codex coding agent working inside a project. It reads the
+          spec, writes code, and is the subject of enforcement — the loop must
+          hold even when the agent forgets the process exists.
+        </description>
+      </actor>
+      <actor id="ACT-HOST" name="Codex Plugin Host" type="system">
+        <description>
+          The Codex plugin and hook runtime: it loads the .codex-plugin
+          manifest, fires hook events (SessionStart, PostToolUse, Stop, and
+          others), surfaces skills, and launches configured MCP servers. It
+          spans several surfaces (CLI, IDE extension, desktop app, cloud)
+          whose hook delivery is not uniform.
+        </description>
+      </actor>
+      <actor id="ACT-CLI" name="rqml CLI" type="system">
+        <description>
+          The deterministic verdict source (@rqml/cli). Every enforcement
+          decision the plugin surfaces originates here, via documented exit
+          codes and JSON output.
+        </description>
+      </actor>
+      <actor id="ACT-DEV" name="Developer" type="human">
+        <description>
+          The human who installs the plugin, trusts its hooks, owns the spec,
+          and approves requirements. Enforcement must inform the developer,
+          never silently override them.
+        </description>
+      </actor>
+    </actors>
+
+    <stakeholders>
+      <stakeholder id="STK-TEAMS" name="Adopting Teams">
+        <concerns>
+          Spec-first enforcement that materially improves agent output without
+          adding friction to every turn — and that can be uninstalled without
+          leaving residue.
+        </concerns>
+      </stakeholder>
+      <stakeholder id="STK-MAINTAINER" name="RQML Maintainer" org="rqml.org">
+        <concerns>
+          A thin, faithful adapter over the toolchain: no duplicated logic that
+          could drift from the engine, and maximum reuse of the enforcement
+          shape proven in rqml-claude (anchor, validate, gate).
+        </concerns>
+      </stakeholder>
+    </stakeholders>
+
+    <constraints>
+      <constraint id="CON-PLUGIN-FORMAT" severity="blocking">
+        <statement>
+          The plugin MUST conform to the Codex plugin format: a
+          .codex-plugin/plugin.json manifest with a kebab-case name and semver
+          version, with skills (skills/&lt;name&gt;/SKILL.md), hooks
+          (hooks/hooks.json), and MCP configuration (.mcp.json) in their
+          documented locations, all manifest paths relative to the plugin
+          root.
+        </statement>
+        <source>Codex plugin documentation (developers.openai.com/codex/plugins/build).</source>
+      </constraint>
+      <constraint id="CON-HOOK-TRUST" severity="blocking">
+        <statement>
+          Plugin-bundled hooks are non-managed hooks: Codex executes them only
+          after the developer has explicitly trusted them (the /hooks review
+          flow, with hash-based retrust after any change). The plugin MUST NOT
+          assume its hooks fire and MUST remain useful — skills and MCP tools
+          working, no false claims of enforcement — while untrusted.
+        </statement>
+        <source>Codex hooks trust model (developers.openai.com/codex/hooks).</source>
+      </constraint>
+      <constraint id="CON-DETERMINISTIC" severity="blocking">
+        <statement>
+          No language model SHALL participate in any enforcement verdict the
+          plugin produces; verdicts come from the rqml CLI exit codes and JSON.
+        </statement>
+        <source>Upstream constraint CON-DETERMINISTIC-GATE (RQML-SELF-001).</source>
+      </constraint>
+      <constraint id="CON-OFFLINE" severity="high">
+        <statement>
+          Hooks SHALL work without network access once the toolchain is
+          installed; nothing is fetched at hook time.
+        </statement>
+        <source>Hooks run on every session and stop event; latency and reliability budgets forbid network calls.</source>
+      </constraint>
+      <constraint id="CON-NODE" severity="high">
+        <statement>
+          The plugin MAY assume a Node.js runtime (18 or newer) is available on
+          the developer's machine, since the toolchain it drives requires one.
+        </statement>
+      </constraint>
+    </constraints>
+
+    <decisions>
+      <decision id="DEC-HOOKS-NOT-PROMPTS" status="approved">
+        <context>
+          Instructing an agent to follow a spec-first process works until the
+          context window rotates or attention drifts; the upstream spec calls
+          this failure mode out as obstacle OBS-VOLUNTARY. Codex hooks now
+          cover the full triad this requires: SessionStart context injection,
+          PostToolUse on file edits (apply_patch and its Edit/Write aliases),
+          and a Stop event whose decision:"block" continues the turn with the
+          blocking reason.
+        </context>
+        <decision>
+          Enforce the process with deterministic Codex hooks — context
+          injection at session start, validation feedback on spec edits, and a
+          blocking gate on stop — rather than relying on AGENTS.md
+          instructions, memory, or agent goodwill.
+        </decision>
+        <alternatives>
+          AGENTS.md instructions alone (rejected: voluntary compliance is the
+          documented failure mode); a subagent reviewer (rejected: puts a model
+          in the verdict path); the legacy notify mechanism (rejected:
+          notification-only, cannot inject context or block).
+        </alternatives>
+        <consequences>
+          The loop holds for the life of a session regardless of context
+          length — once hooks are trusted. Hook latency and the trust flow
+          become first-class quality concerns.
+        </consequences>
+      </decision>
+      <decision id="DEC-SKILLS-NOT-CUSTOM-PROMPTS" status="approved">
+        <context>
+          Codex custom prompts (~/.codex/prompts) are deprecated, live only in
+          the user's home directory, and are not plugin-distributable. Skills
+          are the documented replacement: plugin-bundled, repo-shareable,
+          invocable explicitly ($name or /skills) and via implicit matching on
+          their descriptions.
+        </context>
+        <decision>
+          Every command-like surface of the plugin (init, status, check, and
+          the authoring guidance) SHALL ship as a skill; the plugin SHALL NOT
+          install custom prompts.
+        </decision>
+        <alternatives>
+          Custom prompts (rejected: deprecated and not distributable through
+          the plugin); documentation-only workflows (rejected: no explicit
+          entry points for the developer).
+        </alternatives>
+        <consequences>
+          Entry points are discoverable in the skills list and work across
+          Codex surfaces; skill descriptions must stay concise so implicit
+          matching works and the skills list stays within its context budget.
+        </consequences>
+      </decision>
+      <decision id="DEC-THIN-ADAPTER" status="approved">
+        <context>
+          The toolchain already computes validation, coverage, drift, impact,
+          and extraction deterministically, and CI runs the same CLI.
+        </context>
+        <decision>
+          The plugin SHALL contain no requirements logic of its own. It is an
+          adapter: hooks shell out to the rqml CLI, skills wrap CLI
+          invocations, and agent tools come from the unmodified @rqml/mcp
+          server.
+        </decision>
+        <alternatives>
+          Reimplementing checks in hook scripts (rejected: two implementations
+          drift apart and local verdicts diverge from CI).
+        </alternatives>
+        <consequences>
+          Local blocking behavior is bit-identical to the CI gate; plugin code
+          stays small enough to audit in minutes — which also makes the hook
+          trust review fast.
+        </consequences>
+      </decision>
+      <decision id="DEC-CLI-FOR-HOOKS" status="approved">
+        <context>
+          The toolchain offers two surfaces: the CLI and the MCP server. Hooks
+          run headless and must produce exit-code semantics; the agent's
+          interactive loop benefits from structured tools.
+        </context>
+        <decision>
+          Hooks SHALL invoke the rqml CLI; the agent's interactive loop
+          (reading requirements, impact analysis, recording links) SHALL go
+          through the bundled @rqml/mcp server.
+        </decision>
+        <consequences>
+          Each surface is used where it is strongest; both are backed by one
+          engine, so they cannot disagree.
+        </consequences>
+      </decision>
+      <decision id="DEC-FAIL-OPEN" status="approved">
+        <context>
+          The plugin may be installed in environments where the rqml CLI is
+          missing, broken, the hooks are untrusted, or the project has no spec
+          at all.
+        </context>
+        <decision>
+          When the toolchain is unavailable or the project is not
+          RQML-governed, the plugin SHALL fail open: warn at most once, block
+          nothing, and add no per-turn overhead.
+        </decision>
+        <alternatives>
+          Fail closed (rejected: a missing binary would brick every session;
+          adoption dies on the first false block).
+        </alternatives>
+        <consequences>
+          Enforcement is only as strong as the environment is healthy; CI
+          remains the backstop that always runs the real gate.
+        </consequences>
+      </decision>
+      <decision id="DEC-MARKETPLACE" status="review">
+        <context>
+          Codex installs plugins from marketplace sources — repositories or
+          directories carrying a marketplace manifest at
+          .agents/plugins/marketplace.json — registered with
+          `codex plugin marketplace add`.
+        </context>
+        <decision>
+          This repository SHALL double as its own single-plugin marketplace so
+          installation is one marketplace-add pointing at rqml-org/rqml-codex.
+        </decision>
+        <consequences>
+          No separate distribution repo to keep in sync; the marketplace
+          manifest lives beside the plugin it lists.
+        </consequences>
+      </decision>
+    </decisions>
+
+    <risks>
+      <risk id="RISK-LATENCY" severity="high">
+        <statement>
+          Hook overhead on every session start and stop makes the plugin feel
+          slow, and developers disable it.
+        </statement>
+        <mitigation>
+          Hooks run the sub-second rqml CLI offline (upstream QGOAL-CHECK-SPEED);
+          dormancy in non-RQML projects costs one file-existence test.
+        </mitigation>
+      </risk>
+      <risk id="RISK-FALSE-BLOCK" severity="high">
+        <statement>
+          Overzealous blocking — failing the stop gate on findings the team
+          considers advisory — trains developers to uninstall the plugin.
+        </statement>
+        <mitigation>
+          The gate runs at the project's declared strictness level, surfaces
+          the exact diagnostics, and blocks only on what would also fail CI.
+        </mitigation>
+      </risk>
+      <risk id="RISK-HOOK-DELIVERY" severity="high">
+        <statement>
+          Codex hook delivery is uneven across surfaces and config layers:
+          plugin-bundled hooks have been reported not to execute (openai/codex
+          issue 16430), repo-local hooks not to fire in interactive sessions
+          (issue 17532), and hooks to stop running after desktop updates
+          (issue 21639). Enforcement can silently be absent while everyone
+          believes it is active.
+        </statement>
+        <mitigation>
+          The plugin verifies at session level that its hooks actually fired
+          and reports enforcement status honestly (REQ-TRUST-TRANSPARENCY); a
+          documented global-hooks fallback installation exists; CI remains the
+          deterministic backstop.
+        </mitigation>
+      </risk>
+      <risk id="RISK-CONTRACT-DRIFT" severity="medium">
+        <statement>
+          The plugin's interpretation of CLI exit codes or JSON drifts from the
+          toolchain as versions evolve.
+        </statement>
+        <mitigation>
+          The plugin consumes only the documented, stable contract (exit codes
+          0/1/2/64 and the JSON report shapes) and declares a compatible
+          toolchain version range.
+        </mitigation>
+      </risk>
+    </risks>
+  </catalogs>
+
+  <!-- ============================================================= -->
+  <!-- DOMAIN                                                        -->
+  <!-- ============================================================= -->
+  <domain>
+    <overview>
+      The domain is the enforcement harness itself: the plugin artifact Codex
+      loads, the hook events it binds, the trust state those hooks live in,
+      the verdicts it consumes, and the project marker that activates it.
+    </overview>
+    <entities>
+      <entity id="ENT-PLUGIN" name="Plugin">
+        <description>
+          The installable unit: .codex-plugin/plugin.json manifest, hook
+          configuration, skills, and MCP server registration.
+        </description>
+        <attr id="ATTR-PLUGIN-NAME" name="name" type="string" required="true">
+          <description>Marketplace-visible kebab-case plugin name ("rqml").</description>
+        </attr>
+      </entity>
+      <entity id="ENT-HOOK" name="Hook Binding">
+        <description>
+          A registration of a command handler against a Codex hook event
+          (SessionStart, PostToolUse, Stop), with a matcher where the event
+          supports one (Stop does not).
+        </description>
+        <attr id="ATTR-HOOK-EVENT" name="event" type="enum:SessionStart,PostToolUse,Stop" required="true">
+          <description>The host event the binding fires on.</description>
+        </attr>
+      </entity>
+      <entity id="ENT-TRUST" name="Hook Trust Grant">
+        <description>
+          The developer's recorded decision to let a non-managed hook execute.
+          Codex tracks trust per hook hash; any change to a hook command
+          invalidates the grant until re-reviewed via /hooks.
+        </description>
+        <attr id="ATTR-TRUST-STATE" name="state" type="enum:untrusted,trusted,stale" required="true">
+          <description>Whether the hook may execute, pending review, or invalidated by a change.</description>
+        </attr>
+      </entity>
+      <entity id="ENT-VERDICT" name="Gate Verdict">
+        <description>
+          The result of an rqml CLI invocation as consumed by the plugin: the
+          process exit code plus the machine-readable JSON report.
+        </description>
+        <attr id="ATTR-VERDICT-EXIT" name="exitCode" type="enum:0,1,2,64" required="true">
+          <description>Documented upstream exit-code contract.</description>
+        </attr>
+      </entity>
+      <entity id="ENT-MARKER" name="Project Marker">
+        <description>
+          The signal that a project is RQML-governed: an .rqml spec document in
+          the project root (conventionally requirements.rqml).
+        </description>
+      </entity>
+    </entities>
+    <businessRules>
+      <rule id="BR-DORMANT">
+        <statement>
+          In a project with no .rqml spec document, the plugin MUST do nothing
+          beyond the detection test itself.
+        </statement>
+      </rule>
+      <rule id="BR-NO-MODEL">
+        <statement>
+          No enforcement verdict surfaced by the plugin may originate from a
+          language model.
+        </statement>
+      </rule>
+      <rule id="BR-SHOW-YOUR-WORK">
+        <statement>
+          Whenever the plugin blocks an action, it MUST surface the CLI
+          diagnostics that justify the block, verbatim.
+        </statement>
+      </rule>
+      <rule id="BR-NO-FALSE-ASSURANCE">
+        <statement>
+          The plugin MUST NOT represent enforcement as active when its hooks
+          are untrusted or not firing; honesty about a degraded posture
+          outranks the appearance of protection.
+        </statement>
+      </rule>
+      <rule id="BR-EXIT-CONTRACT">
+        <statement>
+          Exit code 0 means proceed; 1 means validation failure; 2 means
+          blocking drift or coverage; 64 means the plugin invoked the CLI
+          incorrectly and MUST treat it as its own bug, not the user's.
+        </statement>
+      </rule>
+    </businessRules>
+  </domain>
+
+  <!-- ============================================================= -->
+  <!-- GOALS                                                         -->
+  <!-- ============================================================= -->
+  <goals>
+    <goal id="GOAL-ENFORCED-LOOP" title="Enforced, not voluntary" priority="must" ownerRef="STK-TEAMS">
+      <statement>
+        Make the spec-first loop hold for the life of a Codex session without
+        relying on the model remembering that the process exists.
+      </statement>
+      <rationale>
+        Upstream obstacle OBS-VOLUNTARY: agents drift because compliance is
+        voluntary. Hooks remove the reliance on attention and memory.
+      </rationale>
+    </goal>
+    <goal id="GOAL-PARITY" title="Local equals CI" priority="must" ownerRef="STK-MAINTAINER">
+      <statement>
+        What blocks the agent locally SHALL be exactly what blocks CI: the
+        same CLI, the same strictness, the same diagnostics.
+      </statement>
+      <rationale>
+        Divergent local/CI verdicts destroy trust in both; one engine and a
+        thin adapter make divergence structurally impossible.
+      </rationale>
+    </goal>
+    <goal id="GOAL-ZERO-CONFIG" title="Minimal ceremony" priority="should" ownerRef="STK-TEAMS">
+      <statement>
+        Installing the plugin into an RQML-governed project SHALL require no
+        configuration beyond the one-time hook trust approval Codex itself
+        imposes; installing it elsewhere SHALL cost nothing.
+      </statement>
+      <rationale>
+        The trust review is a host-mandated step that cannot be skipped
+        (CON-HOOK-TRUST); everything the plugin controls stays zero-config.
+      </rationale>
+    </goal>
+
+    <qgoal id="QGOAL-LATENCY" title="Imperceptible overhead" priority="must">
+      <statement>Hook executions SHALL be fast enough not to change how the session feels.</statement>
+      <metric>
+        Detection in a non-RQML project: a single stat call. Status and check
+        hooks: bounded by the upstream interactive-latency target (about one
+        second on a typical project).
+      </metric>
+    </qgoal>
+    <qgoal id="QGOAL-SIGNAL" title="High-signal blocking" priority="must">
+      <statement>Every block SHALL be actionable; no block without diagnostics.</statement>
+      <metric>
+        100% of blocking events carry the verbatim CLI diagnostics and the
+        command to reproduce them.
+      </metric>
+    </qgoal>
+
+    <obstacle id="OBS-AGENT-DRIFT" title="Agent forgets the process" likelihood="high" severity="high">
+      <statement>
+        Long sessions rotate context; the agent stops consulting the spec and
+        ships unspecified behavior.
+      </statement>
+      <mitigation>Session-start anchoring and the stop gate make forgetting recoverable.</mitigation>
+    </obstacle>
+    <obstacle id="OBS-UNTRUSTED-HOOKS" title="Hooks never trusted" likelihood="medium" severity="high">
+      <statement>
+        The developer installs the plugin but never completes the /hooks trust
+        review — or a plugin update invalidates the trust hashes — and
+        enforcement is silently absent while the team believes it is active.
+      </statement>
+      <mitigation>
+        The init skill walks the developer through the trust flow; status and
+        check skills report enforcement state honestly (BR-NO-FALSE-ASSURANCE).
+      </mitigation>
+    </obstacle>
+    <obstacle id="OBS-UNINSTALL" title="Friction-driven uninstall" likelihood="medium" severity="high">
+      <statement>
+        If the plugin nags, blocks falsely, or slows turns, developers remove
+        it and enforcement disappears entirely.
+      </statement>
+      <mitigation>Fail-open posture, strictness-respecting gate, sub-second hooks.</mitigation>
+    </obstacle>
+
+    <goalLink id="GL-DRIFT-THREATENS" from="OBS-AGENT-DRIFT" to="GOAL-ENFORCED-LOOP" type="threatens" confidence="0.9"/>
+    <goalLink id="GL-UNTRUSTED-THREATENS" from="OBS-UNTRUSTED-HOOKS" to="GOAL-ENFORCED-LOOP" type="threatens" confidence="0.9"/>
+    <goalLink id="GL-UNINSTALL-THREATENS" from="OBS-UNINSTALL" to="GOAL-ENFORCED-LOOP" type="threatens" confidence="0.8"/>
+    <goalLink id="GL-ZERO-REFINES" from="GOAL-ZERO-CONFIG" to="GOAL-ENFORCED-LOOP" type="refines" confidence="0.7"/>
+  </goals>
+
+  <!-- ============================================================= -->
+  <!-- SCENARIOS                                                     -->
+  <!-- ============================================================= -->
+  <scenarios>
+    <scenario id="SCN-FIRST-TRUST" title="First session after install" actorRef="ACT-DEV">
+      <narrative>
+        1. The developer installs the plugin from the marketplace and starts a
+           session in an RQML-governed project.
+        2. Codex flags the plugin's hooks as pending review; nothing fires yet.
+        3. The developer runs the trust review (/hooks), inspects the three
+           small hook commands, and trusts them.
+        4. From the next session on, anchoring, validation, and the stop gate
+           are live; until then, status and check skills report enforcement as
+           inactive.
+      </narrative>
+    </scenario>
+    <scenario id="SCN-ANCHOR" title="Session starts in an RQML project" actorRef="ACT-AGENT">
+      <narrative>
+        1. A Codex session starts in a project containing requirements.rqml,
+           with the plugin's hooks trusted.
+        2. The SessionStart hook runs rqml status and injects the summary —
+           spec id, coverage gaps, drift state — as additional context, with a
+           one-line reminder of the loop (show, impact, implement, link,
+           check).
+        3. The agent begins work already anchored on the spec.
+      </narrative>
+    </scenario>
+    <scenario id="SCN-SPEC-EDIT" title="Agent edits the spec" actorRef="ACT-AGENT">
+      <narrative>
+        1. The agent writes or edits an .rqml document via apply_patch.
+        2. The PostToolUse hook validates the touched document with the CLI.
+        3. Diagnostics are fed straight back to the agent, which fixes the
+           document before moving on — invalid spec states never persist
+           unnoticed.
+      </narrative>
+    </scenario>
+    <scenario id="SCN-STOP-GATE" title="Agent finishes a task" actorRef="ACT-AGENT">
+      <narrative>
+        1. The agent considers the task complete and the turn stops.
+        2. The Stop hook runs rqml check at the project's strictness.
+        3. Exit 0: the turn ends normally. Non-zero: the hook returns
+           decision "block" and the diagnostics — unlinked requirements,
+           drifted artifacts, invalid spec — become the continuation prompt,
+           so the agent completes the loop (usually rqml link plus a fix)
+           before finishing.
+      </narrative>
+    </scenario>
+    <misuseCase id="MIS-GHOST" title="Unspecified implementation" actorRef="ACT-AGENT">
+      <narrative>
+        The agent implements behavior with no corresponding requirement. At
+        strict and certified levels the stop gate fails on coverage, the
+        diagnostics name the gap, and the agent must capture the requirement
+        (or the developer must waive it) before the turn can end cleanly.
+      </narrative>
+    </misuseCase>
+    <edgeCase id="EDGE-NO-SPEC" title="Plugin installed in a non-RQML project" actorRef="ACT-DEV">
+      <narrative>
+        No .rqml document exists. Every hook returns immediately after the
+        detection test; no context is injected, nothing blocks, and the
+        developer notices the plugin only if they invoke the init skill to
+        adopt it.
+      </narrative>
+    </edgeCase>
+    <edgeCase id="EDGE-NO-CLI" title="Toolchain missing" actorRef="ACT-DEV">
+      <narrative>
+        The project has a spec but the rqml CLI is not installed. The plugin
+        warns once per session with the install command, then stays out of the
+        way: fail open, never fail closed.
+      </narrative>
+    </edgeCase>
+  </scenarios>
+
+  <!-- ============================================================= -->
+  <!-- REQUIREMENTS                                                  -->
+  <!-- ============================================================= -->
+  <requirements>
+
+    <reqPackage id="PKG-PLUGIN" title="Plugin packaging" ownerRef="STK-MAINTAINER">
+      <description>The installable artifact and its distribution.</description>
+      <req id="REQ-MANIFEST" type="CR" title="Conformant plugin manifest" status="draft" priority="must">
+        <statement>
+          The repository SHALL be a valid Codex plugin: a
+          .codex-plugin/plugin.json manifest naming the plugin "rqml" with a
+          semver version, pointing at skills, hooks, and MCP configuration in
+          the locations the plugin format documents.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-MANIFEST-LOADS">
+            <given>A Codex installation</given>
+            <when>The plugin is installed from this repository</when>
+            <then>It loads without errors and its skills are listed.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-MARKETPLACE" type="DR" title="Self-hosting marketplace" status="draft" priority="should">
+        <statement>
+          The repository SHALL carry a marketplace manifest at
+          .agents/plugins/marketplace.json listing the plugin, so installation
+          is a single `codex plugin marketplace add` pointing at
+          rqml-org/rqml-codex.
+        </statement>
+      </req>
+      <req id="REQ-THIN-ADAPTER" type="CR" title="No spec logic in the plugin" status="draft" priority="must">
+        <statement>
+          The plugin SHALL NOT reimplement any validation, coverage, drift,
+          impact, or extraction logic; every verdict and every artifact view
+          SHALL come from the rqml CLI or the @rqml/mcp server.
+        </statement>
+        <rationale>
+          One engine, many surfaces (upstream GOAL-REUSABLE-ENGINE): a second
+          implementation would drift and break local/CI parity. Small hook
+          commands also keep the mandatory trust review auditable in minutes.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-THIN">
+            <given>The plugin source tree</given>
+            <when>It is inspected</when>
+            <then>No code parses or evaluates RQML documents; hooks and skills only invoke the toolchain and relay its output.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-DORMANT" type="NFR" title="Dormant outside RQML projects" status="draft" priority="must">
+        <statement>
+          In a project with no .rqml spec document, every hook SHALL return
+          immediately after a single existence test, inject nothing, and block
+          nothing.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-DORMANT">
+            <given>A session in a project without an .rqml document</given>
+            <when>Session start, tool use, and stop events fire</when>
+            <then>No context is injected and no action is blocked.</then>
+          </criterion>
+        </acceptance>
+      </req>
+    </reqPackage>
+
+    <reqPackage id="PKG-HOOKS" title="Enforcement hooks" ownerRef="STK-TEAMS">
+      <description>
+        The deterministic loop: anchor at start, validate on spec edits, gate
+        on stop — plus honesty about whether the loop is actually armed.
+      </description>
+      <req id="REQ-HOOK-ANCHOR" type="FR" title="Session-start anchoring" status="draft" priority="must">
+        <statement>
+          On SessionStart in an RQML-governed project, the plugin SHALL run
+          rqml status and inject its summary as additional context
+          (hookSpecificOutput.additionalContext), together with a compact
+          statement of the loop: read with show, assess with impact, record
+          with link, finish only when check passes.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-ANCHOR">
+            <given>A project with a valid requirements.rqml and trusted hooks</given>
+            <when>A new session starts</when>
+            <then>The agent's context contains the spec docId, coverage summary, and loop reminder before the first user prompt is handled.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-HOOK-SPEC-VALIDATE" type="FR" title="Immediate spec-edit validation" status="draft" priority="must">
+        <statement>
+          After any apply_patch (including its Edit and Write aliases) that
+          touches an .rqml document, the plugin SHALL run rqml validate on the
+          touched document and, when validation fails, return the diagnostics
+          to the agent as blocking tool feedback (decision "block").
+        </statement>
+        <notes>
+          PostToolUse cannot undo a completed edit; blocking here means the
+          tool result is replaced with the diagnostics so the agent repairs
+          the document in the same turn.
+        </notes>
+        <acceptance>
+          <criterion id="CRIT-SPEC-EDIT">
+            <given>An agent edit that introduces a duplicate id into the spec</given>
+            <when>The edit completes</when>
+            <then>The duplicate-id diagnostic reaches the agent in the same turn.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-HOOK-STOP-GATE" type="FR" title="Stop gate" status="draft" priority="must">
+        <statement>
+          When a turn stops in an RQML-governed project, the plugin SHALL run
+          rqml check at the project's strictness level and SHALL block the
+          stop (decision "block") when the exit code is non-zero, returning
+          the diagnostics as the continuation reason.
+        </statement>
+        <rationale>
+          This is the moment enforcement matters: the gate converts "the agent
+          should finish the loop" into "the turn cannot end until it has".
+        </rationale>
+        <notes>
+          Loop protection: when a stop has already been blocked once and
+          continued by this gate (the host signals this via the documented
+          stop_hook_active input field), a persisting failure SHALL NOT block
+          again; the gate surfaces a final warning and lets the turn end, so
+          an unsatisfiable finding can never trap the agent in an infinite
+          block-continue loop. The Stop event supports no matcher; scoping is
+          done inside the hook command.
+        </notes>
+        <acceptance>
+          <criterion id="CRIT-STOP-BLOCKS">
+            <given>A project whose linked implementation has drifted</given>
+            <when>The turn stops</when>
+            <then>The stop is blocked and the changed-implementation diagnostic is surfaced.</then>
+          </criterion>
+          <criterion id="CRIT-STOP-PASSES">
+            <given>A project where rqml check exits zero</given>
+            <when>The turn stops</when>
+            <then>The turn ends without interference.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-HOOK-DIAGNOSTICS" type="UXR" title="Verbatim, reproducible diagnostics" status="draft" priority="must">
+        <statement>
+          Every block and every validation feedback SHALL include the CLI
+          diagnostics verbatim and the exact command that reproduces them.
+        </statement>
+      </req>
+      <req id="REQ-HOOK-FAIL-OPEN" type="NFR" title="Fail open" status="draft" priority="must">
+        <statement>
+          When the rqml CLI is missing or exits with a usage error (64), the
+          plugin SHALL NOT block anything; it SHALL warn at most once per
+          session, including the toolchain install command.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-FAIL-OPEN">
+            <given>A project with a spec but no rqml CLI on the PATH</given>
+            <when>The agent works and the turn stops</when>
+            <then>Nothing is blocked and exactly one warning is shown.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-TRUST-TRANSPARENCY" type="OR" title="Honest enforcement status" status="draft" priority="must">
+        <statement>
+          The plugin SHALL determine whether its hooks are live in the current
+          session (trusted and actually firing) and SHALL report that state in
+          the status and check skills; when hooks are not live, those skills
+          SHALL say enforcement is inactive and direct the developer to the
+          /hooks trust flow or the documented fallback installation.
+        </statement>
+        <rationale>
+          Hook trust (CON-HOOK-TRUST) and uneven hook delivery
+          (RISK-HOOK-DELIVERY) make "installed" and "enforcing" different
+          states on Codex; conflating them is the most dangerous failure mode
+          this plugin can have (BR-NO-FALSE-ASSURANCE).
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-UNARMED-HONEST">
+            <given>An RQML-governed project where the plugin's hooks are installed but not trusted</given>
+            <when>The developer or agent invokes the status skill</when>
+            <then>The output states that enforcement is inactive and names the trust flow that arms it.</then>
+          </criterion>
+        </acceptance>
+      </req>
+    </reqPackage>
+
+    <reqPackage id="PKG-SKILLS" title="Skills" ownerRef="STK-TEAMS">
+      <description>
+        Explicit entry points for the developer and the agent — shipped as
+        Codex skills because custom prompts are deprecated and not
+        plugin-distributable (DEC-SKILLS-NOT-CUSTOM-PROMPTS).
+      </description>
+      <req id="REQ-SKILL-INIT" type="FR" title="rqml-init skill — adopt RQML" status="draft" priority="must">
+        <statement>
+          The plugin SHALL provide an init skill that scaffolds an
+          RQML-governed project via rqml init, guides the agent through
+          eliciting and drafting the project's first real requirements from
+          the developer, and walks the developer through trusting the
+          plugin's hooks so enforcement is armed.
+        </statement>
+      </req>
+      <req id="REQ-SKILL-STATUS" type="FR" title="rqml-status skill — re-anchor" status="draft" priority="must">
+        <statement>
+          The plugin SHALL provide a status skill that re-runs the
+          session-start anchoring on demand and reports the current
+          enforcement state per REQ-TRUST-TRANSPARENCY.
+        </statement>
+      </req>
+      <req id="REQ-SKILL-CHECK" type="FR" title="rqml-check skill — run the gate" status="draft" priority="must">
+        <statement>
+          The plugin SHALL provide a check skill that runs the gate on demand
+          and has the agent resolve each finding through the loop (show,
+          implement or link, re-check) until it passes.
+        </statement>
+      </req>
+      <req id="REQ-SKILL-AUTHORING" type="FR" title="Authoring skill" status="draft" priority="should">
+        <statement>
+          The plugin SHOULD bundle an authoring skill — activation cues, tag
+          semantics, statement quality guidance derived from rqml-skill — so
+          drafting good RQML is low-friction while every structural question
+          is delegated to the toolchain.
+        </statement>
+      </req>
+      <req id="REQ-SKILL-DISCOVERY" type="UXR" title="Concise, matchable skill descriptions" status="draft" priority="should">
+        <statement>
+          Each bundled skill SHALL carry a concise description scoped so that
+          Codex implicit matching activates it for relevant work, and the
+          skills SHALL remain invocable explicitly by name.
+        </statement>
+        <rationale>
+          Codex loads full skill instructions only on selection and budgets
+          the skill list (~8,000 characters); verbose or vague descriptions
+          either fail to match or crowd out other skills.
+        </rationale>
+      </req>
+    </reqPackage>
+
+    <reqPackage id="PKG-AGENT-TOOLS" title="Agent tooling" ownerRef="STK-MAINTAINER">
+      <description>The read/record loop exposed to the agent as structured tools.</description>
+      <req id="REQ-MCP-BUNDLED" type="FR" title="Bundled MCP server" status="draft" priority="must">
+        <statement>
+          The plugin SHALL register the @rqml/mcp server via its .mcp.json so
+          the agent has the toolchain's tools (validate, status, check, trace,
+          show, impact, skeleton, link) in every session, launched via npx
+          with no separate installation step.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-MCP-TOOLS">
+            <given>A session with the plugin installed</given>
+            <when>The agent lists its tools</when>
+            <then>The rqml_* tools are available.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-PATH-DISCIPLINE" type="PR" title="Path inputs over inline XML" status="draft" priority="should">
+        <statement>
+          Plugin guidance (skills and injected context) SHALL direct the agent
+          to call MCP tools with path inputs rather than inlining documents,
+          and to record trace links with rqml link or rqml_link rather than
+          hand-editing trace XML.
+        </statement>
+      </req>
+    </reqPackage>
+
+    <reqPackage id="PKG-CONFIG" title="Configuration and contracts" ownerRef="STK-MAINTAINER">
+      <description>How the plugin stays aligned with the project and the toolchain.</description>
+      <req id="REQ-STRICTNESS-RESPECT" type="PR" title="Respect declared strictness" status="draft" priority="must">
+        <statement>
+          The plugin SHALL run every gate at the strictness level the project
+          declares (the AGENTS.md strictness convention, which Codex reads
+          natively), defaulting to standard when none is declared.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-STRICTNESS">
+            <given>A project whose AGENTS.md declares strictness strict</given>
+            <when>The stop gate runs</when>
+            <then>rqml check is invoked with strictness strict.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-CLI-CONTRACT" type="IR" title="Consume only the stable contract" status="draft" priority="must">
+        <statement>
+          The plugin SHALL consume only the documented CLI contract — exit
+          codes 0, 1, 2, and 64, and the JSON report shapes of status and
+          check — and SHALL declare the toolchain version range it is
+          compatible with.
+        </statement>
+      </req>
+      <req id="REQ-NO-RESIDUE" type="NFR" title="Clean uninstall" status="draft" priority="should">
+        <statement>
+          Uninstalling the plugin SHALL leave the project untouched: no files
+          written outside the plugin's own directories and Codex's plugin
+          cache, except those the developer explicitly created via the init
+          skill.
+        </statement>
+      </req>
+    </reqPackage>
+
+  </requirements>
+
+  <!-- ============================================================= -->
+  <!-- BEHAVIOR                                                      -->
+  <!-- ============================================================= -->
+  <behavior>
+    <stateMachine id="SM-SESSION" name="Enforcement Session" entityRef="ENT-PLUGIN" initial="ST-DORMANT">
+      <description>
+        The plugin's posture over one Codex session. Compared to the
+        rqml-claude sibling, Codex adds an unarmed posture: the spec is
+        present but the hooks are not live (untrusted, stale trust, or not
+        delivered by the host).
+      </description>
+      <state id="ST-DORMANT" name="Dormant" type="initial">
+        <description>No .rqml document detected; the plugin does nothing.</description>
+        <invariant>Zero injected context, zero blocking, one stat call per event.</invariant>
+      </state>
+      <state id="ST-UNARMED" name="Unarmed">
+        <description>
+          Spec detected but enforcement hooks are not live. Skills and MCP
+          tools work; nothing anchors, validates, or blocks automatically.
+        </description>
+        <invariant>Status and check skills report enforcement as inactive.</invariant>
+      </state>
+      <state id="ST-ANCHORED" name="Anchored">
+        <description>Spec detected, hooks live, status injected; the loop is active.</description>
+      </state>
+      <state id="ST-BLOCKED" name="Blocked">
+        <description>A stop attempt failed the gate; diagnostics returned to the agent.</description>
+        <invariant>The blocking diagnostics are always available to the agent.</invariant>
+      </state>
+      <state id="ST-CLEAN" name="Clean" type="final">
+        <description>The session ended with the gate passing (or dormant/unarmed).</description>
+      </state>
+      <transition id="TR-DETECT" from="ST-DORMANT" to="ST-ANCHORED" event="spec-detected">
+        <description>Session start finds an .rqml document and anchors the agent.</description>
+        <guard>The plugin's hooks are trusted and firing.</guard>
+      </transition>
+      <transition id="TR-DETECT-UNARMED" from="ST-DORMANT" to="ST-UNARMED" event="spec-detected-hooks-dead">
+        <description>The spec is found but hooks are untrusted or not delivered.</description>
+        <guard>Hooks are not live in this session.</guard>
+        <action>Surface the inactive-enforcement state on the next skill invocation.</action>
+      </transition>
+      <transition id="TR-ARM" from="ST-UNARMED" to="ST-ANCHORED" event="trust-granted">
+        <description>The developer completes the /hooks trust flow; enforcement arms.</description>
+      </transition>
+      <transition id="TR-GATE-FAIL" from="ST-ANCHORED" to="ST-BLOCKED" event="stop-rejected">
+        <description>The turn tried to stop; rqml check exited non-zero.</description>
+        <guard>Exit code is 1 or 2.</guard>
+        <action>Return decision "block" with the diagnostics as the reason.</action>
+      </transition>
+      <transition id="TR-RESOLVE" from="ST-BLOCKED" to="ST-ANCHORED" event="findings-addressed">
+        <description>The agent fixes, links, or specifies; work continues.</description>
+      </transition>
+      <transition id="TR-GATE-PASS" from="ST-ANCHORED" to="ST-CLEAN" event="stop-accepted">
+        <description>rqml check exits zero; the turn ends.</description>
+      </transition>
+      <transition id="TR-DORMANT-END" from="ST-DORMANT" to="ST-CLEAN" event="session-end">
+        <description>A non-RQML session ends untouched.</description>
+      </transition>
+      <transition id="TR-UNARMED-END" from="ST-UNARMED" to="ST-CLEAN" event="session-end">
+        <description>An unarmed session ends; CI remains the backstop.</description>
+      </transition>
+    </stateMachine>
+  </behavior>
+
+  <!-- ============================================================= -->
+  <!-- VERIFICATION                                                  -->
+  <!-- ============================================================= -->
+  <verification>
+    <testSuite id="TS-PLUGIN" title="Plugin behavior suite">
+      <description>
+        Exercises the hooks, skills, and tool registrations against fixture
+        projects (governed, ungoverned, drifted, toolchain-missing,
+        hooks-untrusted).
+      </description>
+    </testSuite>
+    <testCase id="TC-MANIFEST" type="inspection" title="Plugin loads">
+      <purpose>Verify manifest conformance.</purpose>
+      <steps>Install the plugin from the repository into Codex.</steps>
+      <expected>It loads without errors; skills, hooks, and MCP tools register.</expected>
+    </testCase>
+    <testCase id="TC-ANCHOR" type="integration" title="Session-start anchoring">
+      <purpose>Verify REQ-HOOK-ANCHOR.</purpose>
+      <steps>Start a session in a fixture project with a valid spec and trusted hooks.</steps>
+      <expected>The injected context contains docId, coverage counts, and the loop reminder.</expected>
+    </testCase>
+    <testCase id="TC-SPEC-EDIT" type="integration" title="Spec edits validated in-turn">
+      <purpose>Verify REQ-HOOK-SPEC-VALIDATE.</purpose>
+      <steps>Have the agent introduce a duplicate id via apply_patch, observe the same turn.</steps>
+      <expected>The duplicate-id diagnostic is returned as tool feedback.</expected>
+    </testCase>
+    <testCase id="TC-STOP-BLOCKS" type="acceptance" title="Stop gate blocks on drift">
+      <purpose>Verify REQ-HOOK-STOP-GATE (CRIT-STOP-BLOCKS).</purpose>
+      <steps>Modify a linked artifact in a fixture project, then let the turn stop.</steps>
+      <expected>The stop is blocked; the changed-implementation diagnostic is the reason.</expected>
+    </testCase>
+    <testCase id="TC-STOP-PASSES" type="acceptance" title="Stop gate passes cleanly">
+      <purpose>Verify REQ-HOOK-STOP-GATE (CRIT-STOP-PASSES).</purpose>
+      <steps>Let the turn stop in a fixture project where check exits zero.</steps>
+      <expected>No interference.</expected>
+    </testCase>
+    <testCase id="TC-DORMANT" type="integration" title="Dormant in ungoverned projects">
+      <purpose>Verify REQ-DORMANT.</purpose>
+      <steps>Run a full session in a project without an .rqml document.</steps>
+      <expected>No injected context, no blocks, no warnings.</expected>
+    </testCase>
+    <testCase id="TC-FAIL-OPEN" type="integration" title="Missing toolchain fails open">
+      <purpose>Verify REQ-HOOK-FAIL-OPEN.</purpose>
+      <steps>Remove the rqml CLI from PATH in a governed fixture; work and stop.</steps>
+      <expected>One warning, zero blocks.</expected>
+    </testCase>
+    <testCase id="TC-UNARMED" type="integration" title="Untrusted hooks reported honestly">
+      <purpose>Verify REQ-TRUST-TRANSPARENCY.</purpose>
+      <steps>Install the plugin in a governed fixture without trusting its hooks; invoke the status skill.</steps>
+      <expected>The output states enforcement is inactive and names the /hooks trust flow.</expected>
+    </testCase>
+    <testCase id="TC-PARITY" type="integration" title="Hook verdict equals CI verdict">
+      <purpose>Verify GOAL-PARITY via REQ-THIN-ADAPTER.</purpose>
+      <steps>Run the stop-gate hook and a bare rqml check on the same fixture.</steps>
+      <expected>Identical verdicts and diagnostics.</expected>
+    </testCase>
+  </verification>
+
+  <!-- ============================================================= -->
+  <!-- TRACE                                                         -->
+  <!--                                                               -->
+  <!-- implements/verifiedBy edges to repository artifacts are       -->
+  <!-- deliberately absent: nothing is implemented yet               -->
+  <!-- (ISS-IMPL-ZERO). They will be recorded with `rqml link` as    -->
+  <!-- each artifact lands, never hand-edited.                       -->
+  <!-- ============================================================= -->
+  <trace>
+    <!-- Requirements satisfy goals -->
+    <edge id="E-ANCHOR-LOOP" type="satisfies" confidence="0.9">
+      <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-GATE-LOOP" type="satisfies" confidence="0.95">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-SPECEDIT-LOOP" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-HOOK-SPEC-VALIDATE"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-TRUST-LOOP" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-THIN-PARITY" type="satisfies" confidence="0.95">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-CONTRACT-PARITY" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-CLI-CONTRACT"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-STRICT-PARITY" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-STRICTNESS-RESPECT"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-DORMANT-ZERO" type="satisfies" confidence="0.9">
+      <from><locator><local id="REQ-DORMANT"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-DORMANT-LATENCY-Q" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-DORMANT"/></locator></from>
+      <to><locator><local id="QGOAL-LATENCY"/></locator></to>
+    </edge>
+    <edge id="E-MANIFEST-ZERO" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-MANIFEST"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-MARKET-ZERO" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-MARKETPLACE"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-MCP-ZERO" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-MCP-BUNDLED"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-FAILOPEN-SIGNAL" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></from>
+      <to><locator><local id="QGOAL-SIGNAL"/></locator></to>
+    </edge>
+    <edge id="E-DIAG-SIGNAL" type="satisfies" confidence="0.9">
+      <from><locator><local id="REQ-HOOK-DIAGNOSTICS"/></locator></from>
+      <to><locator><local id="QGOAL-SIGNAL"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-INIT-ZERO" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-SKILL-INIT"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-STATUS-LOOP" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-SKILL-STATUS"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-CHECK-LOOP" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-SKILL-CHECK"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-DISCOVERY-LOOP" type="satisfies" confidence="0.6">
+      <from><locator><local id="REQ-SKILL-DISCOVERY"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-PATH-LOOP" type="satisfies" confidence="0.6">
+      <from><locator><local id="REQ-PATH-DISCIPLINE"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-AUTHORING-LOOP" type="satisfies" confidence="0.6">
+      <from><locator><local id="REQ-SKILL-AUTHORING"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-RESIDUE-ZERO" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-NO-RESIDUE"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+
+    <!-- Requirements depend on decisions -->
+    <edge id="E-GATE-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><local id="DEC-HOOKS-NOT-PROMPTS"/></locator></to>
+    </edge>
+    <edge id="E-THIN-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><local id="DEC-THIN-ADAPTER"/></locator></to>
+    </edge>
+    <edge id="E-FAILOPEN-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></from>
+      <to><locator><local id="DEC-FAIL-OPEN"/></locator></to>
+    </edge>
+    <edge id="E-MARKET-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-MARKETPLACE"/></locator></from>
+      <to><locator><local id="DEC-MARKETPLACE"/></locator></to>
+    </edge>
+    <edge id="E-MCP-DEC" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-MCP-BUNDLED"/></locator></from>
+      <to><locator><local id="DEC-CLI-FOR-HOOKS"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-INIT-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-INIT"/></locator></from>
+      <to><locator><local id="DEC-SKILLS-NOT-CUSTOM-PROMPTS"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-STATUS-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-STATUS"/></locator></from>
+      <to><locator><local id="DEC-SKILLS-NOT-CUSTOM-PROMPTS"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-CHECK-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-CHECK"/></locator></from>
+      <to><locator><local id="DEC-SKILLS-NOT-CUSTOM-PROMPTS"/></locator></to>
+    </edge>
+
+    <!-- Requirements mitigate risks and obstacles -->
+    <edge id="E-FAILOPEN-UNINSTALL" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></from>
+      <to><locator><local id="OBS-UNINSTALL"/></locator></to>
+    </edge>
+    <edge id="E-DORMANT-LATENCY" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-DORMANT"/></locator></from>
+      <to><locator><local id="RISK-LATENCY"/></locator></to>
+    </edge>
+    <edge id="E-STRICT-FALSEBLOCK" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-STRICTNESS-RESPECT"/></locator></from>
+      <to><locator><local id="RISK-FALSE-BLOCK"/></locator></to>
+    </edge>
+    <edge id="E-DIAG-FALSEBLOCK" type="mitigates" confidence="0.7">
+      <from><locator><local id="REQ-HOOK-DIAGNOSTICS"/></locator></from>
+      <to><locator><local id="RISK-FALSE-BLOCK"/></locator></to>
+    </edge>
+    <edge id="E-CONTRACT-DRIFT" type="mitigates" confidence="0.9">
+      <from><locator><local id="REQ-CLI-CONTRACT"/></locator></from>
+      <to><locator><local id="RISK-CONTRACT-DRIFT"/></locator></to>
+    </edge>
+    <edge id="E-ANCHOR-AGENTDRIFT" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
+      <to><locator><local id="OBS-AGENT-DRIFT"/></locator></to>
+    </edge>
+    <edge id="E-TRUST-UNTRUSTED" type="mitigates" confidence="0.9">
+      <from><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></from>
+      <to><locator><local id="OBS-UNTRUSTED-HOOKS"/></locator></to>
+    </edge>
+    <edge id="E-TRUST-DELIVERY" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></from>
+      <to><locator><local id="RISK-HOOK-DELIVERY"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-INIT-UNTRUSTED" type="mitigates" confidence="0.7">
+      <from><locator><local id="REQ-SKILL-INIT"/></locator></from>
+      <to><locator><local id="OBS-UNTRUSTED-HOOKS"/></locator></to>
+    </edge>
+    <edge id="E-THIN-UNTRUSTED" type="mitigates" confidence="0.6">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><local id="OBS-UNTRUSTED-HOOKS"/></locator></to>
+    </edge>
+
+    <!-- Requirements verified by tests -->
+    <edge id="E-MANIFEST-TC" type="verifiedBy">
+      <from><locator><local id="REQ-MANIFEST"/></locator></from>
+      <to><locator><local id="TC-MANIFEST"/></locator></to>
+    </edge>
+    <edge id="E-ANCHOR-TC" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
+      <to><locator><local id="TC-ANCHOR"/></locator></to>
+    </edge>
+    <edge id="E-SPECEDIT-TC" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-SPEC-VALIDATE"/></locator></from>
+      <to><locator><local id="TC-SPEC-EDIT"/></locator></to>
+    </edge>
+    <edge id="E-GATE-TC-BLOCK" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><local id="TC-STOP-BLOCKS"/></locator></to>
+    </edge>
+    <edge id="E-GATE-TC-PASS" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><local id="TC-STOP-PASSES"/></locator></to>
+    </edge>
+    <edge id="E-DORMANT-TC" type="verifiedBy">
+      <from><locator><local id="REQ-DORMANT"/></locator></from>
+      <to><locator><local id="TC-DORMANT"/></locator></to>
+    </edge>
+    <edge id="E-FAILOPEN-TC" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></from>
+      <to><locator><local id="TC-FAIL-OPEN"/></locator></to>
+    </edge>
+    <edge id="E-TRUST-TC" type="verifiedBy">
+      <from><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></from>
+      <to><locator><local id="TC-UNARMED"/></locator></to>
+    </edge>
+    <edge id="E-THIN-TC" type="verifiedBy">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><local id="TC-PARITY"/></locator></to>
+    </edge>
+
+    <!-- Cross-document dependencies on the upstream toolchain spec -->
+    <edge id="E-GATE-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-CLI-CHECK-GATE" title="rqml check gate"/></locator></to>
+    </edge>
+    <edge id="E-ANCHOR-UPSTREAM" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-CLI-COMMANDS" title="rqml core commands"/></locator></to>
+    </edge>
+    <edge id="E-CONTRACT-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-CLI-CONTRACT"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-CLI-EXIT-CODES" title="Stable exit codes"/></locator></to>
+    </edge>
+    <edge id="E-MCP-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-MCP-BUNDLED"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-MCP-TOOLS" title="MCP toolset"/></locator></to>
+    </edge>
+    <edge id="E-PLUGIN-PRIMITIVES" type="dependsOn" confidence="0.95">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-ENFORCE-PRIMITIVES" title="Enforcement primitives"/></locator></to>
+    </edge>
+
+    <!-- Sibling design lineage: this state machine refines the proven
+         rqml-claude enforcement posture with the unarmed state. -->
+    <edge id="E-SM-SIBLING" type="refines" confidence="0.8">
+      <from><locator><local id="SM-SESSION"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml-claude/blob/main/requirements.rqml" docId="RQML-CLAUDE-001" id="SM-SESSION" title="rqml-claude enforcement session"/></locator></to>
+    </edge>
+
+    <!-- Conformance to the host platform -->
+    <edge id="E-MANIFEST-CODEX" type="conformsTo">
+      <from><locator><local id="REQ-MANIFEST"/></locator></from>
+      <to><locator><external uri="https://developers.openai.com/codex/plugins" kind="documentation" title="Codex plugin format"/></locator></to>
+    </edge>
+    <edge id="E-HOOKS-CODEX" type="conformsTo">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><external uri="https://developers.openai.com/codex/hooks" kind="documentation" title="Codex hooks reference"/></locator></to>
+    </edge>
+
+    <!-- Behavior refines the plugin entity -->
+    <edge id="E-SM-PLUGIN" type="refines" confidence="0.9">
+      <from><locator><local id="SM-SESSION"/></locator></from>
+      <to><locator><local id="ENT-PLUGIN"/></locator></to>
+    </edge>
+  </trace>
+
+  <!-- ============================================================= -->
+  <!-- GOVERNANCE                                                    -->
+  <!-- ============================================================= -->
+  <governance>
+    <issue id="ISS-IMPL-ZERO" status="draft" owner="STK-MAINTAINER">
+      <statement>
+        The spec precedes the plugin: implementation coverage is zero at this
+        draft, and that is the intended state. Every implements/verifiedBy
+        edge will be recorded with rqml link as the corresponding artifact
+        lands, and the drift baseline committed then, mirroring how
+        RQML-CLAUDE-001 (ISS-IMPL-ZERO) and RQML-SELF-001 (ISS-IMPL-TRACE)
+        established theirs.
+      </statement>
+    </issue>
+    <issue id="ISS-SURFACES" status="review" owner="STK-MAINTAINER">
+      <statement>
+        Which Codex surfaces this plugin targets. The Codex CLI is the
+        reference target; the IDE extension, desktop app, and Codex cloud
+        differ in hook delivery today (plugin-local and repo-local hooks have
+        documented gaps — openai/codex issues 16430, 17532, 21639). Decision
+        needed on whether to document a global hooks.json fallback as a
+        supported installation mode or treat non-CLI surfaces as best-effort
+        until upstream stabilizes.
+      </statement>
+      <notes>REQ-TRUST-TRANSPARENCY makes the degraded state visible whichever way this resolves.</notes>
+    </issue>
+    <issue id="ISS-HOOK-EVENTS" status="review" owner="STK-MAINTAINER">
+      <statement>
+        Open question: whether additional Codex hook events add value beyond
+        the core triad. Candidates: PostCompact re-anchoring (re-inject the
+        spec summary after compaction, directly countering OBS-AGENT-DRIFT),
+        UserPromptSubmit per-prompt context, and PreToolUse guarding of
+        hand-edits to trace XML. Deferred until the three core hooks have
+        field experience; each extra hook also grows the trust-review surface.
+      </statement>
+    </issue>
+    <approval id="APR-MAINTAINER" role="RQML Maintainer" status="draft">
+      <description>Maintainer sign-off on the rqml-codex specification.</description>
+    </approval>
+  </governance>
+
+</rqml>
