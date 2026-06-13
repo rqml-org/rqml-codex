@@ -676,8 +676,9 @@
           On SessionStart in an RQML-governed project, the plugin SHALL run
           rqml status and inject its summary as additional context
           (hookSpecificOutput.additionalContext), together with a compact
-          statement of the loop: read with show, assess with impact, record
-          with link, finish only when check passes.
+          statement of the five-stage process: Spec, Design (ADRs), Plan, Code
+          (read with show, assess with impact, record with link), and Verify
+          (finish only when check passes).
         </statement>
         <acceptance>
           <criterion id="CRIT-ANCHOR">
@@ -812,6 +813,36 @@
           and has the agent resolve each finding through the loop (show,
           implement or link, re-check) until it passes.
         </statement>
+      </req>
+      <req id="REQ-SKILL-DESIGN" type="FR" title="rqml-design skill — record an ADR" status="approved" priority="should">
+        <statement>
+          The plugin SHALL provide a design skill that runs the Design stage: it
+          classifies a decision and, when the decision is ADR-worthy, writes an
+          Architecture Decision Record to .rqml/adr/ following the canonical
+          format (NNNN-slug.md, immutable once accepted), without implementing
+          the decision.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-SKILL-DESIGN">
+            <given>A significant design decision handled via the rqml-design skill</given>
+            <when>The agent concludes it is ADR-worthy</when>
+            <then>An ADR file is written to .rqml/adr/ using the canonical naming and template.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-SKILL-PLAN" type="FR" title="rqml-plan skill — draft the plan" status="approved" priority="should">
+        <statement>
+          The plugin SHALL provide a plan skill that runs the Plan stage: it
+          assesses readiness and creates or updates a staged implementation plan
+          at .rqml/plan.md, framed for coding agents, without implementing it.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-SKILL-PLAN">
+            <given>A project with approved requirements</given>
+            <when>The developer invokes the rqml-plan skill</when>
+            <then>.rqml/plan.md is created or updated with per-stage goals, requirement ids, and verification steps.</then>
+          </criterion>
+        </acceptance>
       </req>
       <req id="REQ-SKILL-AUTHORING" type="FR" title="Authoring skill" status="approved" priority="should">
         <statement>
@@ -1098,6 +1129,14 @@
       <from><locator><local id="REQ-SKILL-CHECK"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
     </edge>
+    <edge id="E-SKILL-DESIGN-LOOP" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-SKILL-DESIGN"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-PLAN-LOOP" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-SKILL-PLAN"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
     <edge id="E-SKILL-DISCOVERY-LOOP" type="satisfies" confidence="0.6">
       <from><locator><local id="REQ-SKILL-DISCOVERY"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
@@ -1237,6 +1276,14 @@
     <edge id="E-ANCHOR-UPSTREAM" type="dependsOn" confidence="0.9">
       <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
       <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-CLI-COMMANDS" title="rqml core commands"/></locator></to>
+    </edge>
+    <edge id="E-DESIGN-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-DESIGN"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-ADR-CONVENTION" title="Design decisions recorded as ADRs"/></locator></to>
+    </edge>
+    <edge id="E-PLAN-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-PLAN"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml/blob/main/requirements.rqml" docId="RQML-SELF-001" id="REQ-PLAN-CONVENTION" title="Implementation plan in .rqml/plan.md"/></locator></to>
     </edge>
     <edge id="E-CONTRACT-UPSTREAM" type="dependsOn" confidence="1.0">
       <from><locator><local id="REQ-CLI-CONTRACT"/></locator></from>
@@ -1431,6 +1478,22 @@
     </edge>
     <edge id="E-VER-NO-RESIDUE" type="verifiedBy">
       <from><locator><local id="REQ-NO-RESIDUE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-DESIGN" type="implements">
+      <from><locator><external uri="skills/rqml-design/SKILL.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-SKILL-DESIGN"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-PLAN" type="implements">
+      <from><locator><external uri="skills/rqml-plan/SKILL.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-SKILL-PLAN"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-DESIGN" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-DESIGN"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-PLAN" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-PLAN"/></locator></from>
       <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
