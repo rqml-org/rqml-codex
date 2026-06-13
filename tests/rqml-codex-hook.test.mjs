@@ -35,6 +35,8 @@ test("bundled skills are discoverable and delegate to RQML tools", async () => {
     "rqml-status": [/rqml status --json/, /enforcement/, /path inputs/],
     "rqml-check": [/rqml check/, /rqml show <REQ-ID>/, /rqml link/],
     "rqml-authoring": [/rqml skeleton req/, /rqml validate/, /No behavior is added/],
+    "rqml-design": [/\.rqml\/adr\//, /Classify/, /immutable once accepted/],
+    "rqml-plan": [/\.rqml\/plan\.md/, /READY/, /rqml link/],
   };
 
   for (const [skillName, patterns] of Object.entries(expected)) {
@@ -95,6 +97,9 @@ test("SessionStart injects RQML status and loop guidance", async () => {
   const context = payload.hookSpecificOutput.additionalContext;
   assert.match(context, /DOC-001/);
   assert.match(context, /Requirements: 2; trace edges: 3/);
+  assert.match(context, /five-stage RQML process/);
+  assert.match(context, /\.rqml\/adr\//);
+  assert.match(context, /\.rqml\/plan\.md/);
   assert.match(context, /rqml show <REQ-ID>/);
   assert.match(context, /rqml link/);
 });

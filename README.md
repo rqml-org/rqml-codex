@@ -4,12 +4,14 @@ RQML spec-first enforcement for [OpenAI Codex](https://developers.openai.com/cod
 the Codex sibling of [rqml-claude](https://github.com/rqml-org/rqml-claude).
 
 A Codex plugin that makes spec-first development enforced rather than
-voluntary: deterministic hooks anchor every session on the project spec,
+voluntary: deterministic hooks anchor every session on the project spec and
+the [five-stage RQML process](https://rqml.org/docs/development-process),
 validate spec edits as they happen, and gate turn completion on the
 `rqml check` verdict. Skills and the bundled `@rqml/mcp` server give the
-agent the full read/record loop. The plugin contains no requirements logic
-of its own — every verdict comes from the `rqml` CLI, so what blocks the
-agent locally is exactly what blocks CI.
+agent the full read/record loop — including `rqml-design` (record decisions
+as ADRs in `.rqml/adr/`) and `rqml-plan` (maintain `.rqml/plan.md`). The
+plugin contains no requirements logic of its own — every verdict comes from
+the `rqml` CLI, so what blocks the agent locally is exactly what blocks CI.
 
 ## Status
 
@@ -27,7 +29,7 @@ documented Codex capabilities:
   `apply_patch`, and `Stop` with `decision: "block"` + `stop_hook_active`
   loop protection cover the triad.
 - **Skills, not slash commands**: Codex custom prompts are deprecated and not
-  plugin-distributable; init/status/check ship as skills.
+  plugin-distributable; init/status/design/plan/check ship as skills.
 - **Hook trust**: plugin hooks are non-managed and fire only after the
   developer trusts them (`/hooks`). The plugin tracks whether enforcement is
   actually live and says so when it is not — see `REQ-TRUST-TRANSPARENCY`
@@ -43,8 +45,8 @@ documented Codex capabilities:
 - `hooks/rqml-codex-hook.mjs` - hook entrypoint.
 - `lib/rqml-codex-core.mjs` - deterministic adapter over the `rqml` CLI.
 - `scripts/rqml-codex.mjs` - helper used by bundled skills.
-- `skills/` - `rqml-init`, `rqml-status`, `rqml-check`, and
-  `rqml-authoring` workflows.
+- `skills/` - `rqml-init`, `rqml-status`, `rqml-design`, `rqml-plan`,
+  `rqml-check`, and `rqml-authoring` workflows.
 - `tests/` - hook behavior tests with a fake `rqml` binary.
 
 ## Verification
