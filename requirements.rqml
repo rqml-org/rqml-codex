@@ -61,7 +61,7 @@
     </authors>
     <dates>
       <created>2026-06-12</created>
-      <updated>2026-06-12</updated>
+      <updated>2026-06-13</updated>
     </dates>
     <conventions>
       <normativeKeywords>
@@ -608,7 +608,7 @@
 
     <reqPackage id="PKG-PLUGIN" title="Plugin packaging" ownerRef="STK-MAINTAINER">
       <description>The installable artifact and its distribution.</description>
-      <req id="REQ-MANIFEST" type="CR" title="Conformant plugin manifest" status="draft" priority="must">
+      <req id="REQ-MANIFEST" type="CR" title="Conformant plugin manifest" status="approved" priority="must">
         <statement>
           The repository SHALL be a valid Codex plugin: a
           .codex-plugin/plugin.json manifest naming the plugin "rqml" with a
@@ -623,7 +623,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-MARKETPLACE" type="DR" title="Self-hosting marketplace" status="draft" priority="should">
+      <req id="REQ-MARKETPLACE" type="DR" title="Self-hosting marketplace" status="approved" priority="should">
         <statement>
           The repository SHALL carry a marketplace manifest at
           .agents/plugins/marketplace.json listing the plugin, so installation
@@ -631,7 +631,7 @@
           rqml-org/rqml-codex.
         </statement>
       </req>
-      <req id="REQ-THIN-ADAPTER" type="CR" title="No spec logic in the plugin" status="draft" priority="must">
+      <req id="REQ-THIN-ADAPTER" type="CR" title="No spec logic in the plugin" status="approved" priority="must">
         <statement>
           The plugin SHALL NOT reimplement any validation, coverage, drift,
           impact, or extraction logic; every verdict and every artifact view
@@ -650,7 +650,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-DORMANT" type="NFR" title="Dormant outside RQML projects" status="draft" priority="must">
+      <req id="REQ-DORMANT" type="NFR" title="Dormant outside RQML projects" status="approved" priority="must">
         <statement>
           In a project with no .rqml spec document, every hook SHALL return
           immediately after a single existence test, inject nothing, and block
@@ -671,7 +671,7 @@
         The deterministic loop: anchor at start, validate on spec edits, gate
         on stop — plus honesty about whether the loop is actually armed.
       </description>
-      <req id="REQ-HOOK-ANCHOR" type="FR" title="Session-start anchoring" status="draft" priority="must">
+      <req id="REQ-HOOK-ANCHOR" type="FR" title="Session-start anchoring" status="approved" priority="must">
         <statement>
           On SessionStart in an RQML-governed project, the plugin SHALL run
           rqml status and inject its summary as additional context
@@ -687,7 +687,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-HOOK-SPEC-VALIDATE" type="FR" title="Immediate spec-edit validation" status="draft" priority="must">
+      <req id="REQ-HOOK-SPEC-VALIDATE" type="FR" title="Immediate spec-edit validation" status="approved" priority="must">
         <statement>
           After any apply_patch (including its Edit and Write aliases) that
           touches an .rqml document, the plugin SHALL run rqml validate on the
@@ -707,7 +707,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-HOOK-STOP-GATE" type="FR" title="Stop gate" status="draft" priority="must">
+      <req id="REQ-HOOK-STOP-GATE" type="FR" title="Stop gate" status="approved" priority="must">
         <statement>
           When a turn stops in an RQML-governed project, the plugin SHALL run
           rqml check at the project's strictness level and SHALL block the
@@ -740,13 +740,13 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-HOOK-DIAGNOSTICS" type="UXR" title="Verbatim, reproducible diagnostics" status="draft" priority="must">
+      <req id="REQ-HOOK-DIAGNOSTICS" type="UXR" title="Verbatim, reproducible diagnostics" status="approved" priority="must">
         <statement>
           Every block and every validation feedback SHALL include the CLI
           diagnostics verbatim and the exact command that reproduces them.
         </statement>
       </req>
-      <req id="REQ-HOOK-FAIL-OPEN" type="NFR" title="Fail open" status="draft" priority="must">
+      <req id="REQ-HOOK-FAIL-OPEN" type="NFR" title="Fail open" status="approved" priority="must">
         <statement>
           When the rqml CLI is missing or exits with a usage error (64), the
           plugin SHALL NOT block anything; it SHALL warn at most once per
@@ -760,7 +760,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-TRUST-TRANSPARENCY" type="OR" title="Honest enforcement status" status="draft" priority="must">
+      <req id="REQ-TRUST-TRANSPARENCY" type="OR" title="Honest enforcement status" status="approved" priority="must">
         <statement>
           The plugin SHALL determine whether its hooks are live in the current
           session (trusted and actually firing) and SHALL report that state in
@@ -790,7 +790,7 @@
         Codex skills because custom prompts are deprecated and not
         plugin-distributable (DEC-SKILLS-NOT-CUSTOM-PROMPTS).
       </description>
-      <req id="REQ-SKILL-INIT" type="FR" title="rqml-init skill — adopt RQML" status="draft" priority="must">
+      <req id="REQ-SKILL-INIT" type="FR" title="rqml-init skill — adopt RQML" status="approved" priority="must">
         <statement>
           The plugin SHALL provide an init skill that scaffolds an
           RQML-governed project via rqml init, guides the agent through
@@ -799,21 +799,21 @@
           plugin's hooks so enforcement is armed.
         </statement>
       </req>
-      <req id="REQ-SKILL-STATUS" type="FR" title="rqml-status skill — re-anchor" status="draft" priority="must">
+      <req id="REQ-SKILL-STATUS" type="FR" title="rqml-status skill — re-anchor" status="approved" priority="must">
         <statement>
           The plugin SHALL provide a status skill that re-runs the
           session-start anchoring on demand and reports the current
           enforcement state per REQ-TRUST-TRANSPARENCY.
         </statement>
       </req>
-      <req id="REQ-SKILL-CHECK" type="FR" title="rqml-check skill — run the gate" status="draft" priority="must">
+      <req id="REQ-SKILL-CHECK" type="FR" title="rqml-check skill — run the gate" status="approved" priority="must">
         <statement>
           The plugin SHALL provide a check skill that runs the gate on demand
           and has the agent resolve each finding through the loop (show,
           implement or link, re-check) until it passes.
         </statement>
       </req>
-      <req id="REQ-SKILL-AUTHORING" type="FR" title="Authoring skill" status="draft" priority="should">
+      <req id="REQ-SKILL-AUTHORING" type="FR" title="Authoring skill" status="approved" priority="should">
         <statement>
           The plugin SHOULD bundle an authoring skill — activation cues, tag
           semantics, statement quality guidance derived from rqml-skill — so
@@ -821,7 +821,7 @@
           is delegated to the toolchain.
         </statement>
       </req>
-      <req id="REQ-SKILL-DISCOVERY" type="UXR" title="Concise, matchable skill descriptions" status="draft" priority="should">
+      <req id="REQ-SKILL-DISCOVERY" type="UXR" title="Concise, matchable skill descriptions" status="approved" priority="should">
         <statement>
           Each bundled skill SHALL carry a concise description scoped so that
           Codex implicit matching activates it for relevant work, and the
@@ -837,7 +837,7 @@
 
     <reqPackage id="PKG-AGENT-TOOLS" title="Agent tooling" ownerRef="STK-MAINTAINER">
       <description>The read/record loop exposed to the agent as structured tools.</description>
-      <req id="REQ-MCP-BUNDLED" type="FR" title="Bundled MCP server" status="draft" priority="must">
+      <req id="REQ-MCP-BUNDLED" type="FR" title="Bundled MCP server" status="approved" priority="must">
         <statement>
           The plugin SHALL register the @rqml/mcp server via its .mcp.json so
           the agent has the toolchain's tools (validate, status, check, trace,
@@ -852,7 +852,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-PATH-DISCIPLINE" type="PR" title="Path inputs over inline XML" status="draft" priority="should">
+      <req id="REQ-PATH-DISCIPLINE" type="PR" title="Path inputs over inline XML" status="approved" priority="should">
         <statement>
           Plugin guidance (skills and injected context) SHALL direct the agent
           to call MCP tools with path inputs rather than inlining documents,
@@ -864,7 +864,7 @@
 
     <reqPackage id="PKG-CONFIG" title="Configuration and contracts" ownerRef="STK-MAINTAINER">
       <description>How the plugin stays aligned with the project and the toolchain.</description>
-      <req id="REQ-STRICTNESS-RESPECT" type="PR" title="Respect declared strictness" status="draft" priority="must">
+      <req id="REQ-STRICTNESS-RESPECT" type="PR" title="Respect declared strictness" status="approved" priority="must">
         <statement>
           The plugin SHALL run every gate at the strictness level the project
           declares (the AGENTS.md strictness convention, which Codex reads
@@ -878,7 +878,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-CLI-CONTRACT" type="IR" title="Consume only the stable contract" status="draft" priority="must">
+      <req id="REQ-CLI-CONTRACT" type="IR" title="Consume only the stable contract" status="approved" priority="must">
         <statement>
           The plugin SHALL consume only the documented CLI contract — exit
           codes 0, 1, 2, and 64, and the JSON report shapes of status and
@@ -886,7 +886,7 @@
           compatible with.
         </statement>
       </req>
-      <req id="REQ-NO-RESIDUE" type="NFR" title="Clean uninstall" status="draft" priority="should">
+      <req id="REQ-NO-RESIDUE" type="NFR" title="Clean uninstall" status="approved" priority="should">
         <statement>
           Uninstalling the plugin SHALL leave the project untouched: no files
           written outside the plugin's own directories and Codex's plugin
@@ -1272,6 +1272,166 @@
     <edge id="E-SM-PLUGIN" type="refines" confidence="0.9">
       <from><locator><local id="SM-SESSION"/></locator></from>
       <to><locator><local id="ENT-PLUGIN"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-MANIFEST" type="implements">
+      <from><locator><external uri=".codex-plugin/plugin.json" kind="code"/></locator></from>
+      <to><locator><local id="REQ-MANIFEST"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-MARKETPLACE" type="implements">
+      <from><locator><external uri=".agents/plugins/marketplace.json" kind="code"/></locator></from>
+      <to><locator><local id="REQ-MARKETPLACE"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-THIN-ADAPTER" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-THIN-ADAPTER"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DORMANT" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-DORMANT"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-ANCHOR" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-ANCHOR"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-SPEC-VALIDATE" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-SPEC-VALIDATE"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-STOP-GATE" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-STOP-GATE"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-DIAGNOSTICS" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-DIAGNOSTICS"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-FAIL-OPEN" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-TRUST-TRANSPARENCY" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-INIT" type="implements">
+      <from><locator><external uri="skills/rqml-init/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-INIT"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-STATUS" type="implements">
+      <from><locator><external uri="skills/rqml-status/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-STATUS"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-CHECK" type="implements">
+      <from><locator><external uri="skills/rqml-check/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-CHECK"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-AUTHORING" type="implements">
+      <from><locator><external uri="skills/rqml-authoring/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-AUTHORING"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-DISCOVERY" type="implements">
+      <from><locator><external uri="skills/rqml-status/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-DISCOVERY"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-MCP-BUNDLED" type="implements">
+      <from><locator><external uri=".mcp.json" kind="code"/></locator></from>
+      <to><locator><local id="REQ-MCP-BUNDLED"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-PATH-DISCIPLINE" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-PATH-DISCIPLINE"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-STRICTNESS-RESPECT" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-STRICTNESS-RESPECT"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-CLI-CONTRACT" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-CLI-CONTRACT"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-NO-RESIDUE" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-NO-RESIDUE"/></locator></to>
+    </edge>
+    <edge id="E-VER-MANIFEST" type="verifiedBy">
+      <from><locator><local id="REQ-MANIFEST"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-MARKETPLACE" type="verifiedBy">
+      <from><locator><local id="REQ-MARKETPLACE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-THIN-ADAPTER" type="verifiedBy">
+      <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-DORMANT" type="verifiedBy">
+      <from><locator><local id="REQ-DORMANT"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-ANCHOR" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-ANCHOR"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-SPEC-VALIDATE" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-SPEC-VALIDATE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-STOP-GATE" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-DIAGNOSTICS" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-DIAGNOSTICS"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-FAIL-OPEN" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-FAIL-OPEN"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-TRUST-TRANSPARENCY" type="verifiedBy">
+      <from><locator><local id="REQ-TRUST-TRANSPARENCY"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-INIT" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-INIT"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-STATUS" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-STATUS"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-CHECK" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-CHECK"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-AUTHORING" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-AUTHORING"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-DISCOVERY" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-DISCOVERY"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-MCP-BUNDLED" type="verifiedBy">
+      <from><locator><local id="REQ-MCP-BUNDLED"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-PATH-DISCIPLINE" type="verifiedBy">
+      <from><locator><local id="REQ-PATH-DISCIPLINE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-STRICTNESS-RESPECT" type="verifiedBy">
+      <from><locator><local id="REQ-STRICTNESS-RESPECT"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-CLI-CONTRACT" type="verifiedBy">
+      <from><locator><local id="REQ-CLI-CONTRACT"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-NO-RESIDUE" type="verifiedBy">
+      <from><locator><local id="REQ-NO-RESIDUE"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 

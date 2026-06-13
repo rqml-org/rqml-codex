@@ -13,10 +13,10 @@ agent locally is exactly what blocks CI.
 
 ## Status
 
-**Specification only.** The spec leads the code: [requirements.rqml](requirements.rqml)
-(`RQML-CODEX-001`, draft) is authored and nothing is implemented yet.
-Implementation starts once the spec is approved; `implements`/`verifiedBy`
-trace edges will be recorded with `rqml link` as each artifact lands.
+Initial plugin implementation is present. The spec still leads the code:
+[requirements.rqml](requirements.rqml) (`RQML-CODEX-001`, draft) defines the
+required behavior, and implementation/test trace edges are recorded with
+`rqml link`.
 
 ## Design notes (vs rqml-claude)
 
@@ -34,3 +34,27 @@ documented Codex capabilities:
   and the `ST-UNARMED` state in the spec.
 - **Plugin format**: `.codex-plugin/plugin.json` manifest; the repo doubles
   as its own marketplace via `.agents/plugins/marketplace.json`.
+
+## Plugin layout
+
+- `.codex-plugin/plugin.json` - Codex plugin manifest for the `rqml` plugin.
+- `.mcp.json` - bundled `@rqml/mcp` server launched through `npx`.
+- `hooks/hooks.json` - SessionStart, PostToolUse, and Stop hook bindings.
+- `hooks/rqml-codex-hook.mjs` - hook entrypoint.
+- `lib/rqml-codex-core.mjs` - deterministic adapter over the `rqml` CLI.
+- `scripts/rqml-codex.mjs` - helper used by bundled skills.
+- `skills/` - `rqml-init`, `rqml-status`, `rqml-check`, and
+  `rqml-authoring` workflows.
+- `tests/` - hook behavior tests with a fake `rqml` binary.
+
+## Verification
+
+```bash
+npm test
+python3 /path/to/validate_plugin.py .
+rqml check
+```
+
+The plugin validator needs PyYAML available to the Python interpreter running
+it. The hook tests do not require network access or an installed `@rqml/mcp`
+server.

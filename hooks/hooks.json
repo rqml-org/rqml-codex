@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/rqml-codex-hook.mjs session-start",
+            "statusMessage": "Loading RQML status"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/rqml-codex-hook.mjs post-tool-use",
+            "statusMessage": "Validating RQML spec edit"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/rqml-codex-hook.mjs stop",
+            "statusMessage": "Running RQML check"
+          }
+        ]
+      }
+    ]
+  }
+}

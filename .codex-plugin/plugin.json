@@ -1,0 +1,43 @@
+{
+  "name": "rqml",
+  "version": "0.1.0",
+  "description": "RQML spec-first enforcement for Codex.",
+  "author": {
+    "name": "RQML Maintainers",
+    "url": "https://github.com/rqml-org"
+  },
+  "homepage": "https://rqml.org",
+  "repository": "https://github.com/rqml-org/rqml-codex",
+  "license": "MIT",
+  "keywords": [
+    "rqml",
+    "requirements",
+    "traceability",
+    "spec-first",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "RQML",
+    "shortDescription": "Enforce RQML spec-first development in Codex.",
+    "longDescription": "Anchors Codex sessions on RQML requirements, validates spec edits, gates completion with rqml check, and exposes RQML authoring and traceability workflows.",
+    "developerName": "RQML Maintainers",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Hooks",
+      "MCP"
+    ],
+    "websiteURL": "https://rqml.org",
+    "privacyPolicyURL": "https://rqml.org/privacy",
+    "termsOfServiceURL": "https://rqml.org/terms",
+    "brandColor": "#10A37F",
+    "defaultPrompt": [
+      "Show RQML status for this repo.",
+      "Run the RQML check gate.",
+      "Draft requirements for this change."
+    ]
+  }
+}
