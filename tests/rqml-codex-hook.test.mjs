@@ -22,6 +22,7 @@ test("plugin metadata declares the required Codex components", async () => {
   assert.equal(mcp.mcpServers.rqml.command, "npx");
   assert.deepEqual(mcp.mcpServers.rqml.args, ["-y", "@rqml/mcp"]);
   assert.ok(hooks.hooks.SessionStart);
+  assert.ok(hooks.hooks.PreToolUse);
   assert.ok(hooks.hooks.PostToolUse);
   assert.ok(hooks.hooks.Stop);
   assert.equal(marketplace.plugins[0].name, "rqml");
@@ -37,6 +38,7 @@ test("bundled skills are discoverable and delegate to RQML tools", async () => {
     "rqml-authoring": [/rqml skeleton req/, /rqml validate/, /No behavior is added/],
     "rqml-design": [/\.rqml\/adr\//, /Classify/, /immutable once accepted/],
     "rqml-plan": [/\.rqml\/plan\.md/, /READY/, /rqml link/],
+    "rqml-review": [/rqml approve <REQ-ID>/, /rqml matrix --status draft,review/, /pre-implementation gate/],
   };
 
   for (const [skillName, patterns] of Object.entries(expected)) {
@@ -143,6 +145,60 @@ test("PostToolUse ignores non-RQML edits", async () => {
     tool_input: {
       command: "*** Begin Patch\n*** Update File: README.md\n@@\n*** End Patch\n",
     },
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "");
+});
+
+test("PreToolUse blocks edits to code implementing a non-approved requirement", async () => {
+  const fixture = await makeFixture({ withSpec: true });
+  await installFakeRqml(fixture.bin, {
+    gateExit: 2,
+    gateMessage: "src/a.ts implements REQ-B, which is not approved",
+  });
+
+  const result = runHook("pre-tool-use", {
+    cwd: fixture.cwd,
+    session_id: "s-gate",
+    hook_event_name: "PreToolUse",
+    tool_name: "apply_patch",
+    tool_input: { command: "*** Begin Patch\n*** Update File: src/a.ts\n@@\n*** End Patch\n" },
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.decision, "block");
+  assert.match(payload.reason, /not approved/);
+  assert.match(payload.reason, /Command: rqml gate src\/a\.ts/);
+});
+
+test("PreToolUse allows edits when the approval gate is clear", async () => {
+  const fixture = await makeFixture({ withSpec: true });
+  await installFakeRqml(fixture.bin, { gateExit: 0 });
+
+  const result = runHook("pre-tool-use", {
+    cwd: fixture.cwd,
+    session_id: "s-gate-ok",
+    hook_event_name: "PreToolUse",
+    tool_name: "apply_patch",
+    tool_input: { command: "*** Begin Patch\n*** Update File: src/a.ts\n@@\n*** End Patch\n" },
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "");
+});
+
+test("PreToolUse ignores .rqml edits (validation and check own those)", async () => {
+  const fixture = await makeFixture({ withSpec: true });
+  await installFakeRqml(fixture.bin, { gateExit: 2, gateMessage: "should not run" });
+
+  const result = runHook("pre-tool-use", {
+    cwd: fixture.cwd,
+    session_id: "s-gate-rqml",
+    hook_event_name: "PreToolUse",
+    tool_name: "apply_patch",
+    tool_input: { command: "*** Begin Patch\n*** Update File: requirements.rqml\n@@\n*** End Patch\n" },
   }, fixture.env);
 
   assert.equal(result.status, 0);
@@ -298,8 +354,10 @@ async function installFakeRqml(binDir, options = {}) {
   });
   const validateExit = Number(options.validateExit || 0);
   const checkExit = Number(options.checkExit || 0);
+  const gateExit = Number(options.gateExit || 0);
   const validateMessage = options.validateMessage || "validation failed";
   const checkMessage = options.checkMessage || "check failed";
+  const gateMessage = options.gateMessage || "gate finding";
   const logPath = options.logPath || "";
   const script = `#!/bin/sh
 if [ -n "${escapeShell(logPath)}" ]; then
@@ -337,6 +395,14 @@ case "$1" in
         exit 0
         ;;
     esac
+    ;;
+  gate)
+    if [ ${gateExit} -ne 0 ]; then
+      printf '%s\\n' '${gateMessage.replace(/'/g, "'\\''")}'
+      exit ${gateExit}
+    fi
+    printf 'no findings\\n'
+    exit 0
     ;;
   init)
     printf 'initialized\\n'
