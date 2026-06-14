@@ -783,6 +783,31 @@
           </criterion>
         </acceptance>
       </req>
+      <req id="REQ-HOOK-PREIMPL" type="FR" title="Pre-implementation approval gate" status="draft" priority="should">
+        <statement>
+          The plugin SHALL provide a pre-edit gate that, before an edit to a
+          code artifact already linked by an implements edge to a requirement,
+          consults the toolchain's approval-gate verdict and denies the edit
+          when that requirement is not approved, failing open if the toolchain
+          is unavailable. Where the host does not emit a pre-edit event, the
+          plugin SHALL fall back to the stop gate and the review skill rather
+          than silently omit the check.
+        </statement>
+        <rationale>
+          Mirrors the Claude plugin's approval checkpoint (ADR-0008) on the
+          host-agnostic verdict; Codex's hook surface may not fire before
+          edits, so the requirement specifies graceful degradation to preserve
+          parity of intent (GOAL-PARITY) without faking a guarantee the host
+          cannot keep. The verdict is the toolchain's, not the model's.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-PREIMPL-DENY">
+            <given>A host that emits a pre-edit event and an edit to code linked to a draft requirement</given>
+            <when>The gate runs</when>
+            <then>The edit is denied naming the requirement; and on a host without a pre-edit event, the stop gate still blocks session end on the same condition.</then>
+          </criterion>
+        </acceptance>
+      </req>
     </reqPackage>
 
     <reqPackage id="PKG-SKILLS" title="Skills" ownerRef="STK-TEAMS">
@@ -863,6 +888,31 @@
           the skill list (~8,000 characters); verbose or vague descriptions
           either fail to match or crowd out other skills.
         </rationale>
+      </req>
+      <req id="REQ-SKILL-REVIEW" type="FR" title="rqml-review skill — accept requirements" status="draft" priority="should">
+        <statement>
+          The plugin SHALL provide a review skill that renders the draft and
+          review requirements as an overview and a traceability matrix,
+          presents them to the developer for acceptance, and on confirmation
+          transitions each accepted requirement to approved via the toolchain's
+          approve operation.
+        </statement>
+        <rationale>
+          Adoption already gates on the developer approving requirements
+          (REQ-SKILL-INIT); a review skill makes acceptance an explicit,
+          repeatable checkpoint for new requirements mid-project, using the
+          toolchain's deterministic surfaces (overview, matrix, approve) rather
+          than manual XML edits. Packaged as a Codex skill
+          (DEC-SKILLS-NOT-CUSTOM-PROMPTS). The human decides; the toolchain
+          performs the edit.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-REVIEW-ACCEPT">
+            <given>A project with draft requirements</given>
+            <when>The developer invokes the review skill and confirms a requirement</when>
+            <then>That requirement's status becomes approved and the others are unchanged.</then>
+          </criterion>
+        </acceptance>
       </req>
     </reqPackage>
 
@@ -1495,6 +1545,16 @@
     <edge id="E-VER-SKILL-PLAN" type="verifiedBy">
       <from><locator><local id="REQ-SKILL-PLAN"/></locator></from>
       <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+
+    <!-- Interactive review/accept (capability 3) -->
+    <edge id="E-PREIMPL-LOOP" type="satisfies" confidence="0.85">
+      <from><locator><local id="REQ-HOOK-PREIMPL"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-REVIEW-LOOP" type="satisfies" confidence="0.85">
+      <from><locator><local id="REQ-SKILL-REVIEW"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
     </edge>
   </trace>
 
