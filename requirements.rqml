@@ -783,7 +783,7 @@
           </criterion>
         </acceptance>
       </req>
-      <req id="REQ-HOOK-PREIMPL" type="FR" title="Pre-implementation approval gate" status="draft" priority="should">
+      <req id="REQ-HOOK-PREIMPL" type="FR" title="Pre-implementation approval gate" status="approved" priority="should">
         <statement>
           The plugin SHALL provide a pre-edit gate that, before an edit to a
           code artifact already linked by an implements edge to a requirement,
@@ -889,7 +889,7 @@
           either fail to match or crowd out other skills.
         </rationale>
       </req>
-      <req id="REQ-SKILL-REVIEW" type="FR" title="rqml-review skill — accept requirements" status="draft" priority="should">
+      <req id="REQ-SKILL-REVIEW" type="FR" title="rqml-review skill — accept requirements" status="approved" priority="should">
         <statement>
           The plugin SHALL provide a review skill that renders the draft and
           review requirements as an overview and a traceability matrix,
@@ -1555,6 +1555,22 @@
     <edge id="E-REVIEW-LOOP" type="satisfies" confidence="0.85">
       <from><locator><local id="REQ-SKILL-REVIEW"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-PREIMPL" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-PREIMPL"/></locator></to>
+    </edge>
+    <edge id="E-VER-HOOK-PREIMPL" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-PREIMPL"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-SKILL-REVIEW" type="implements">
+      <from><locator><external uri="skills/rqml-review/SKILL.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-REVIEW"/></locator></to>
+    </edge>
+    <edge id="E-VER-SKILL-REVIEW" type="verifiedBy">
+      <from><locator><local id="REQ-SKILL-REVIEW"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 

@@ -25,11 +25,12 @@ required behavior, and implementation/test trace edges are recorded with
 The enforcement shape is identical — anchor, validate, gate — but adapted to
 documented Codex capabilities:
 
-- **Hooks**: Codex `SessionStart` (context injection), `PostToolUse` on
-  `apply_patch`, and `Stop` with `decision: "block"` + `stop_hook_active`
-  loop protection cover the triad.
+- **Hooks**: Codex `SessionStart` (context injection), a `PreToolUse` approval
+  gate (denies edits to code implementing a non-approved requirement),
+  `PostToolUse` on `apply_patch`, and `Stop` with `decision: "block"` +
+  `stop_hook_active` loop protection.
 - **Skills, not slash commands**: Codex custom prompts are deprecated and not
-  plugin-distributable; init/status/design/plan/check ship as skills.
+  plugin-distributable; init/status/design/plan/check/review ship as skills.
 - **Hook trust**: plugin hooks are non-managed and fire only after the
   developer trusts them (`/hooks`). The plugin tracks whether enforcement is
   actually live and says so when it is not — see `REQ-TRUST-TRANSPARENCY`
@@ -41,12 +42,12 @@ documented Codex capabilities:
 
 - `.codex-plugin/plugin.json` - Codex plugin manifest for the `rqml` plugin.
 - `.mcp.json` - bundled `@rqml/mcp` server launched through `npx`.
-- `hooks/hooks.json` - SessionStart, PostToolUse, and Stop hook bindings.
+- `hooks/hooks.json` - SessionStart, PreToolUse, PostToolUse, and Stop hook bindings.
 - `hooks/rqml-codex-hook.mjs` - hook entrypoint.
 - `lib/rqml-codex-core.mjs` - deterministic adapter over the `rqml` CLI.
 - `scripts/rqml-codex.mjs` - helper used by bundled skills.
 - `skills/` - `rqml-init`, `rqml-status`, `rqml-design`, `rqml-plan`,
-  `rqml-check`, and `rqml-authoring` workflows.
+  `rqml-check`, `rqml-review`, and `rqml-authoring` workflows.
 - `tests/` - hook behavior tests with a fake `rqml` binary.
 
 ## Verification

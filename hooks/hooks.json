@@ -11,6 +11,18 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${PLUGIN_ROOT}/hooks/rqml-codex-hook.mjs pre-tool-use",
+            "statusMessage": "Checking the approval gate"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "apply_patch|Edit|Write",
