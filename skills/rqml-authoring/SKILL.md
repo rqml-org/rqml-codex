@@ -5,21 +5,27 @@ description: Author and review RQML requirements with clear statements, acceptan
 
 # rqml-authoring
 
-Use this skill when editing `.rqml` requirements, reviewing requirement quality, or adding traceable specification content.
+Use this skill when editing `.rqml` requirements, reviewing requirement quality,
+or adding traceable specification content.
 
-## Authoring Rules
+The **full authoring craft** — document structure, statement quality, identity &
+lifecycle, and traceability — is in **`authoring.md`** in this skill directory:
+the canonical guide, vendored from
+[rqml-skill](https://github.com/rqml-org/rqml-skill). Read it for depth, and do
+not edit it here — the upstream craft-sync keeps it current.
 
-- Start from intent: actor, system behavior, observable outcome, and constraints.
-- Use normative language deliberately: MUST/SHALL for required behavior, SHOULD for preferred behavior, MAY for optional behavior.
-- Keep each requirement testable. Add acceptance criteria for behavior that needs clear verification.
-- Use `rqml skeleton req`, `rqml skeleton edge`, and `rqml skeleton testCase` when structure is uncertain.
-- Validate with `rqml validate` after every spec edit.
-- Use `rqml link` or `rqml_link` for trace edges; do not hand-edit trace XML.
+## Non-negotiables
 
-## Review Checklist
+- Validate after every edit: `rqml validate` — never leave the spec invalid.
+- Record trace links with `rqml link` / `rqml_link`, never by hand.
+- Use `rqml skeleton <req|edge|testCase|stateMachine>`; never invent element shapes.
+- Read before you write: `rqml show <ID>`, `rqml impact <ID>`.
+- Finish only when `rqml check` passes — the Stop gate enforces it.
 
-- Requirement statement is specific enough to implement.
-- Acceptance criteria name observable inputs and outcomes.
-- IDs follow the repository convention.
-- Trace links connect goals, requirements, implementation, and tests.
-- No behavior is added to code without a requirement.
+## In Codex
+
+The `rqml_*` MCP tools are available; prefer their `path` inputs over inlining
+documents. Companion skills run the five-stage process: `rqml-init`,
+`rqml-status`, `rqml-design`, `rqml-plan`, `rqml-review`, `rqml-check`.
+
+Full craft: `authoring.md` · Canonical docs: https://rqml.org/docs/
