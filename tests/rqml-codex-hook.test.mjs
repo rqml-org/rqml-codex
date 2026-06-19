@@ -35,7 +35,7 @@ test("bundled skills are discoverable and delegate to RQML tools", async () => {
     "rqml-init": [/rqml init/, /\/hooks/, /rqml validate/],
     "rqml-status": [/rqml status --json/, /enforcement/, /path inputs/],
     "rqml-check": [/rqml check/, /rqml show <REQ-ID>/, /rqml link/],
-    "rqml-authoring": [/rqml skeleton req/, /rqml validate/, /No behavior is added/],
+    "rqml-authoring": [/rqml skeleton/, /rqml validate/, /authoring\.md/],
     "rqml-design": [/\.rqml\/adr\//, /Classify/, /immutable once accepted/],
     "rqml-plan": [/\.rqml\/plan\.md/, /READY/, /rqml link/],
     "rqml-review": [/rqml approve <REQ-ID>/, /rqml matrix --status draft,review/, /pre-implementation gate/],

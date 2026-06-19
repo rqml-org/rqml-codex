@@ -301,6 +301,26 @@
           manifest lives beside the plugin it lists.
         </consequences>
       </decision>
+      <decision id="DEC-VENDOR-CRAFT" status="approved">
+        <context>
+          The authoring skill's craft (document structure, statement quality,
+          identity, traceability) was re-expressed here and in rqml-claude and
+          had diverged from rqml-skill, with no single canonical home.
+        </context>
+        <decision>
+          Vendor the canonical craft as a copy of rqml-skill's
+          references/authoring.md at skills/rqml-authoring/authoring.md; slim the
+          bundled SKILL.md to activation cues plus a pointer to it; and add a CI
+          drift guard. The copy is kept current by rqml-skill's automated
+          craft-sync, so this plugin re-expresses no craft of its own. See
+          rqml-skill ADR-0009 (DEC-CRAFT-HOME).
+        </decision>
+        <consequences>
+          One source of truth for the craft; the vendored copy stays offline and
+          in-context; updates arrive as sync pull requests; the guard catches
+          drift.
+        </consequences>
+      </decision>
     </decisions>
 
     <risks>
@@ -349,6 +369,17 @@
           The plugin consumes only the documented, stable contract (exit codes
           0/1/2/64 and the JSON report shapes) and declares a compatible
           toolchain version range.
+        </mitigation>
+      </risk>
+      <risk id="RISK-CRAFT-DRIFT" severity="medium">
+        <statement>
+          The vendored authoring craft falls out of step with the canonical
+          rqml-skill reference, or is edited locally instead of upstream.
+        </statement>
+        <mitigation>
+          rqml-skill's craft-sync opens a refresh pull request on change, and a CI
+          drift guard (REQ-CRAFT-GUARD) fails when the vendored copy diverges from
+          the canonical source.
         </mitigation>
       </risk>
     </risks>
@@ -871,11 +902,29 @@
       </req>
       <req id="REQ-SKILL-AUTHORING" type="FR" title="Authoring skill" status="approved" priority="should">
         <statement>
-          The plugin SHOULD bundle an authoring skill — activation cues, tag
-          semantics, statement quality guidance derived from rqml-skill — so
-          drafting good RQML is low-friction while every structural question
-          is delegated to the toolchain.
+          The plugin SHOULD bundle an authoring skill whose craft content is a
+          vendored copy of rqml-skill's canonical authoring reference
+          (references/authoring.md), kept current by the upstream craft-sync, so
+          the plugin re-expresses no authoring guidance of its own. The bundled
+          SKILL.md SHALL add only activation cues and Codex specifics and point
+          to the vendored craft, while every structural question is delegated to
+          the toolchain.
         </statement>
+      </req>
+      <req id="REQ-CRAFT-GUARD" type="NFR" title="Vendored craft drift guard" status="approved" priority="should">
+        <statement>
+          A continuous-integration check SHALL fail when the vendored authoring
+          craft (skills/rqml-authoring/authoring.md) diverges from the canonical
+          source in rqml-skill, so the bundled copy cannot silently drift between
+          syncs or be edited locally.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-CRAFT-GUARD">
+            <given>A vendored authoring.md edited to differ from the canonical rqml-skill reference</given>
+            <when>CI runs</when>
+            <then>The drift check fails and names the divergence; and when the canonical source is unreachable the check is skipped rather than failing spuriously.</then>
+          </criterion>
+        </acceptance>
       </req>
       <req id="REQ-SKILL-DISCOVERY" type="UXR" title="Concise, matchable skill descriptions" status="approved" priority="should">
         <statement>
@@ -1198,6 +1247,30 @@
     <edge id="E-SKILL-AUTHORING-LOOP" type="satisfies" confidence="0.6">
       <from><locator><local id="REQ-SKILL-AUTHORING"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-GUARD-PARITY" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-GUARD-DRIFT" type="mitigates" confidence="0.8">
+      <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
+      <to><locator><local id="RISK-CRAFT-DRIFT"/></locator></to>
+    </edge>
+    <edge id="E-SKILL-VENDOR-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-AUTHORING"/></locator></from>
+      <to><locator><local id="DEC-VENDOR-CRAFT"/></locator></to>
+    </edge>
+    <edge id="E-GUARD-VENDOR-DEC" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
+      <to><locator><local id="DEC-VENDOR-CRAFT"/></locator></to>
+    </edge>
+    <edge id="E-VENDOR-UPSTREAM" type="dependsOn" confidence="1.0">
+      <from><locator><local id="REQ-SKILL-AUTHORING"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml-skill/blob/main/requirements.rqml" docId="RQML-SKILL-001" id="REQ-AUTHORING-CRAFT" title="Canonical authoring-craft reference"/></locator></to>
+    </edge>
+    <edge id="E-GUARD-UPSTREAM" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml-skill/blob/main/requirements.rqml" docId="RQML-SKILL-001" id="REQ-CRAFT-SYNC" title="Automated craft propagation to plugins"/></locator></to>
     </edge>
     <edge id="E-RESIDUE-ZERO" type="satisfies" confidence="0.7">
       <from><locator><local id="REQ-NO-RESIDUE"/></locator></from>
@@ -1571,6 +1644,18 @@
     <edge id="E-VER-SKILL-REVIEW" type="verifiedBy">
       <from><locator><local id="REQ-SKILL-REVIEW"/></locator></from>
       <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-AUTHORING-VENDORED" type="implements">
+      <from><locator><external uri="skills/rqml-authoring/authoring.md" kind="code"/></locator></from>
+      <to><locator><local id="REQ-SKILL-AUTHORING"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-CRAFT-GUARD" type="implements">
+      <from><locator><external uri=".github/workflows/ci.yml" kind="code"/></locator></from>
+      <to><locator><local id="REQ-CRAFT-GUARD"/></locator></to>
+    </edge>
+    <edge id="E-VER-CRAFT-GUARD" type="verifiedBy">
+      <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
+      <to><locator><external uri="tests/craft-sync.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 

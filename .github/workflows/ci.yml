@@ -1,0 +1,24 @@
+name: CI
+
+# Runs the plugin test suite, including the craft drift guard
+# (tests/craft-sync.test.mjs, REQ-CRAFT-GUARD), which fails if the vendored
+# authoring craft has drifted from the canonical rqml-skill source. The hook
+# tests use a fake rqml binary, so the suite needs no toolchain install.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm test
