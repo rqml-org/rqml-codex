@@ -800,6 +800,40 @@
           </criterion>
         </acceptance>
       </req>
+      <req id="REQ-HOOK-WORKSPACE" type="FR" title="Workspace fan-out" status="approved" priority="should">
+        <statement>
+          When no spec governs the working directory but package specs exist
+          beneath it (a workspace root), the plugin SHALL NOT go dormant: at
+          session start it SHALL surface the discovered units and how to gate
+          them, and on stop it SHALL run the workspace check (rqml check
+          --workspace) and block the stop when its aggregate exit code is
+          non-zero, returning the diagnostics as the reason. Discovery SHALL be
+          delegated to the CLI, never reimplemented in the hook. When the CLI is
+          unavailable the plugin SHALL stay silent rather than warn, since a
+          workspace cannot be distinguished from an ungoverned directory without
+          it.
+        </statement>
+        <rationale>
+          A monorepo root that holds package specs is governed, just not by a
+          single spec; treating it as dormant (REQ-DORMANT) would leave repo-wide
+          sessions unenforced (GOAL-ENFORCED-LOOP). The per-edit gates stay
+          unit-scoped — they fire inside a governed unit and defer to this stop
+          fan-out at a bare root — so enforcement degrades gracefully rather than
+          reimplementing discovery on every edit.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-WORKSPACE-ANCHOR">
+            <given>A directory with no spec of its own but package specs beneath it</given>
+            <when>A session starts</when>
+            <then>The injected context lists the package specs and points to rqml check --workspace, rather than staying dormant.</then>
+          </criterion>
+          <criterion id="CRIT-WORKSPACE-GATE">
+            <given>A workspace root where one package spec fails its check</given>
+            <when>The turn stops</when>
+            <then>The stop is blocked with the aggregated workspace diagnostics.</then>
+          </criterion>
+        </acceptance>
+      </req>
       <req id="REQ-HOOK-DIAGNOSTICS" type="UXR" title="Verbatim, reproducible diagnostics" status="approved" priority="must">
         <statement>
           Every block and every validation feedback SHALL include the CLI
@@ -1176,6 +1210,11 @@
       <steps>Run the stop-gate hook and a bare rqml check on the same fixture.</steps>
       <expected>Identical verdicts and diagnostics.</expected>
     </testCase>
+    <testCase id="TC-WORKSPACE" type="integration" title="Workspace fan-out at a spec-less root">
+      <purpose>Verify REQ-HOOK-WORKSPACE.</purpose>
+      <steps>Start a session and stop a turn at a directory with no spec of its own but package specs beneath it.</steps>
+      <expected>Session start lists the units and points to rqml check --workspace; the stop runs the workspace check and blocks when a unit fails.</expected>
+    </testCase>
   </verification>
 
   <!-- ============================================================= -->
@@ -1194,6 +1233,10 @@
     </edge>
     <edge id="E-GATE-LOOP" type="satisfies" confidence="0.95">
       <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-WORKSPACE-LOOP" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-HOOK-WORKSPACE"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
     </edge>
     <edge id="E-SPECEDIT-LOOP" type="satisfies" confidence="0.8">
@@ -1414,6 +1457,10 @@
       <from><locator><local id="REQ-HOOK-STOP-GATE"/></locator></from>
       <to><locator><local id="TC-STOP-PASSES"/></locator></to>
     </edge>
+    <edge id="E-WORKSPACE-TC" type="verifiedBy">
+      <from><locator><local id="REQ-HOOK-WORKSPACE"/></locator></from>
+      <to><locator><local id="TC-WORKSPACE"/></locator></to>
+    </edge>
     <edge id="E-DORMANT-TC" type="verifiedBy">
       <from><locator><local id="REQ-DORMANT"/></locator></from>
       <to><locator><local id="TC-DORMANT"/></locator></to>
@@ -1510,6 +1557,10 @@
     <edge id="E-IMPL-HOOK-STOP-GATE" type="implements">
       <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
       <to><locator><local id="REQ-HOOK-STOP-GATE"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-HOOK-WORKSPACE" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-HOOK-WORKSPACE"/></locator></to>
     </edge>
     <edge id="E-IMPL-HOOK-DIAGNOSTICS" type="implements">
       <from><locator><external uri="lib/rqml-codex-core.mjs" kind="code"/></locator></from>

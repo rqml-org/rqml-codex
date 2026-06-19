@@ -39,6 +39,8 @@ rqml skeleton <kind>       # schema-valid snippet: req | edge | testCase | state
 
 Run `rqml status` when you start a session to re-anchor on the spec. Run `rqml check` before finishing any task — it must exit 0.
 
+**Enforcement boundary.** Do not treat the absence of a pre-edit block as approval. The `PreToolUse` approval gate is best-effort — it fires only for certain edit tools, so a write made another way (a `Bash` redirect like `> file` or `tee`, `sed -i`, a notebook edit, or an MCP file writer) is not seen by it, and even when it fires it only blocks edits to code already linked to a non-approved requirement. The authoritative gate is the turn-end `rqml check` (the `Stop` hook) plus CI — and because the `Stop` gate itself fails open when the CLI is missing, CI is the unconditional backstop. Follow approval-before-implementation yourself: only implement `status="approved"` requirements, and make sure `rqml check` exits 0 before you finish.
+
 ---
 
 ## Core Principle: Spec-First Development
