@@ -308,11 +308,11 @@
           had diverged from rqml-skill, with no single canonical home.
         </context>
         <decision>
-          Vendor the canonical craft as a copy of rqml-skill's
-          references/authoring.md at skills/rqml-authoring/authoring.md; slim the
-          bundled SKILL.md to activation cues plus a pointer to it; and add a CI
-          drift guard. The copy is kept current by rqml-skill's automated
-          craft-sync, so this plugin re-expresses no craft of its own. See
+          Vendor rqml-skill's canonical references — references/authoring.md and
+          references/monorepo.md — at skills/rqml-authoring/; slim the bundled
+          SKILL.md to activation cues plus pointers to them; and add a CI drift
+          guard. The copies are kept current by rqml-skill's automated craft-sync,
+          so this plugin re-expresses no craft or scope model of its own. See
           rqml-skill ADR-0009 (DEC-CRAFT-HOME).
         </decision>
         <consequences>
@@ -437,16 +437,17 @@
       </entity>
       <entity id="ENT-MARKER" name="Project Marker">
         <description>
-          The signal that a project is RQML-governed: an .rqml spec document in
-          the project root (conventionally requirements.rqml).
+          The signal that a project is RQML-governed: the nearest enclosing .rqml
+          spec document — in the working directory or a parent directory up to the
+          repository root (conventionally requirements.rqml).
         </description>
       </entity>
     </entities>
     <businessRules>
       <rule id="BR-DORMANT">
         <statement>
-          In a project with no .rqml spec document, the plugin MUST do nothing
-          beyond the detection test itself.
+          When no governing spec exists in the working directory or any parent
+          directory, the plugin MUST do nothing beyond the discovery test itself.
         </statement>
       </rule>
       <rule id="BR-NO-MODEL">
@@ -685,15 +686,40 @@
       </req>
       <req id="REQ-DORMANT" type="NFR" title="Dormant outside RQML projects" status="approved" priority="must">
         <statement>
-          In a project with no .rqml spec document, every hook SHALL return
-          immediately after a single existence test, inject nothing, and block
-          nothing.
+          When no governing spec exists — no .rqml spec document in the working
+          directory or any parent directory up to the repository root — every hook
+          SHALL return immediately after the discovery test, inject nothing, and
+          block nothing.
         </statement>
         <acceptance>
           <criterion id="CRIT-DORMANT">
-            <given>A session in a project without an .rqml document</given>
+            <given>A session whose working directory has no .rqml document in it or any parent directory</given>
             <when>Session start, tool use, and stop events fire</when>
             <then>No context is injected and no action is blocked.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-DISCOVERY" type="FR" title="Nearest-enclosing spec discovery" status="approved" priority="must">
+        <statement>
+          The plugin SHALL resolve the governing spec for a session by checking the
+          working directory and then each successive parent directory, up to the
+          repository root, using the nearest enclosing requirements.rqml (or sole
+          .rqml file; a directory named .rqml is not a spec). A session in a
+          subdirectory of a governed project is therefore governed by that
+          project's spec, not treated as dormant.
+        </statement>
+        <rationale>
+          Resolving the spec from the working directory alone left a session in any
+          subdirectory of a monorepo project silently dormant — enforcement off
+          where it should be on, breaking local/CI parity (GOAL-PARITY). The
+          nearest-enclosing rule matches the canonical model (rqml-skill
+          REQ-MONOREPO-REF) and the CLI's own resolution.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-DISCOVERY">
+            <given>A session whose working directory is a subdirectory of a project that has a requirements.rqml</given>
+            <when>A hook resolves the governing spec</when>
+            <then>It finds that project's requirements.rqml and the session is governed, not dormant.</then>
           </criterion>
         </acceptance>
       </req>
@@ -915,14 +941,14 @@
       </req>
       <req id="REQ-CRAFT-GUARD" type="NFR" title="Vendored craft drift guard" status="approved" priority="should">
         <statement>
-          A continuous-integration check SHALL fail when the vendored authoring
-          craft (skills/rqml-authoring/authoring.md) diverges from the canonical
-          source in rqml-skill, so the bundled copy cannot silently drift between
-          syncs or be edited locally.
+          A continuous-integration check SHALL fail when a vendored reference
+          (skills/rqml-authoring/authoring.md or skills/rqml-authoring/monorepo.md)
+          diverges from its canonical source in rqml-skill, so a bundled copy
+          cannot silently drift between syncs or be edited locally.
         </statement>
         <acceptance>
           <criterion id="CRIT-CRAFT-GUARD">
-            <given>A vendored authoring.md edited to differ from the canonical rqml-skill reference</given>
+            <given>A vendored reference edited to differ from its canonical rqml-skill source</given>
             <when>CI runs</when>
             <then>The drift check fails and names the divergence; and when the canonical source is unreachable the check is skipped rather than failing spuriously.</then>
           </criterion>
@@ -1253,6 +1279,18 @@
     <edge id="E-GUARD-PARITY" type="satisfies" confidence="0.7">
       <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
       <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-DISCOVERY-PARITY" type="satisfies" confidence="0.9">
+      <from><locator><local id="REQ-DISCOVERY"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-DISCOVERY-LOOP" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-DISCOVERY"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-DISCOVERY-UPSTREAM" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-DISCOVERY"/></locator></from>
+      <to><locator><doc uri="https://github.com/rqml-org/rqml-skill/blob/main/requirements.rqml" docId="RQML-SKILL-001" id="REQ-MONOREPO-REF" title="Canonical monorepo scope reference"/></locator></to>
     </edge>
     <edge id="E-GUARD-DRIFT" type="mitigates" confidence="0.8">
       <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
@@ -1658,6 +1696,14 @@
     <edge id="E-VER-CRAFT-GUARD" type="verifiedBy">
       <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
       <to><locator><external uri="tests/craft-sync.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DISCOVERY" type="implements">
+      <from><locator><external uri="lib/rqml-codex-core.mjs#findProjectSpec" kind="code"/></locator></from>
+      <to><locator><local id="REQ-DISCOVERY"/></locator></to>
+    </edge>
+    <edge id="E-VER-DISCOVERY" type="verifiedBy">
+      <from><locator><local id="REQ-DISCOVERY"/></locator></from>
+      <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 

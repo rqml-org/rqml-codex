@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { findProjectSpec } from "../lib/rqml-codex-core.mjs";
 
 const repoRoot = path.resolve(new URL("..", import.meta.url).pathname);
 const hookScript = path.join(repoRoot, "hooks", "rqml-codex-hook.mjs");
@@ -267,6 +269,35 @@ test("Missing rqml CLI warns once per session and never blocks", async () => {
   assert.equal(second.status, 0);
   assert.match(JSON.parse(first.stdout).systemMessage, /npm install -g @rqml\/cli/);
   assert.equal(second.stdout, "");
+});
+
+// REQ-DISCOVERY: the governing spec is the nearest enclosing one, found by
+// checking cwd then each parent directory — so a session in a subdirectory of a
+// governed project is governed, not dormant.
+test("findProjectSpec resolves the governing spec from a subdirectory (nearest enclosing)", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-disc-"));
+  try {
+    writeFileSync(path.join(root, "requirements.rqml"), "<rqml/>");
+    const deep = path.join(root, "pkg", "src");
+    mkdirSync(deep, { recursive: true });
+    assert.equal(findProjectSpec(root), path.join(root, "requirements.rqml"));
+    assert.equal(findProjectSpec(deep), path.join(root, "requirements.rqml"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("findProjectSpec returns null with no spec in cwd or any parent", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-bare-"));
+  try {
+    mkdirSync(path.join(root, ".rqml")); // a .rqml directory is not a spec
+    const sub = path.join(root, "pkg", "src");
+    mkdirSync(sub, { recursive: true });
+    assert.equal(findProjectSpec(root), null);
+    assert.equal(findProjectSpec(sub), null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("status helper reports unconfirmed enforcement without hook state", async () => {
