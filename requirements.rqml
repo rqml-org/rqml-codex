@@ -318,7 +318,9 @@
         <consequences>
           One source of truth for the craft; the vendored copy stays offline and
           in-context; updates arrive as sync pull requests; the guard catches
-          drift.
+          drift. The guard runs on pull requests (the sync PR validates itself;
+          main is not gated on the moving upstream craft), so an upstream change
+          never reds the plugin's main between the sync PR opening and merging.
         </consequences>
       </decision>
     </decisions>
