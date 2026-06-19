@@ -170,9 +170,12 @@ test("PreToolUse blocks edits to code implementing a non-approved requirement", 
 
   assert.equal(result.status, 0);
   const payload = JSON.parse(result.stdout);
-  assert.equal(payload.decision, "block");
-  assert.match(payload.reason, /not approved/);
-  assert.match(payload.reason, /Command: rqml gate src\/a\.ts/);
+  // Current PreToolUse shape: hookSpecificOutput.permissionDecision "deny"
+  // (not the legacy top-level decision:"block").
+  assert.equal(payload.decision, undefined);
+  assert.equal(payload.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(payload.hookSpecificOutput.permissionDecisionReason, /not approved/);
+  assert.match(payload.hookSpecificOutput.permissionDecisionReason, /Command: rqml gate src\/a\.ts/);
 });
 
 test("PreToolUse allows edits when the approval gate is clear", async () => {
@@ -271,6 +274,83 @@ test("Missing rqml CLI warns once per session and never blocks", async () => {
   assert.equal(second.stdout, "");
 });
 
+// REQ-WORKSPACE-FANOUT: a directory with no governing spec but package specs
+// beneath it is a workspace, not dormant. SessionStart surfaces the units and
+// Stop gates them all with `rqml check --workspace`.
+test("SessionStart surfaces workspace package specs at a spec-less root", async () => {
+  const fixture = await makeFixture(); // no spec directly in cwd
+  await installFakeRqml(fixture.bin, {
+    workspaceUnits: [
+      { docId: "PKG-A", status: "draft" },
+      { docId: "PKG-B", status: "approved" },
+    ],
+  });
+
+  const result = runHook("session-start", {
+    cwd: fixture.cwd,
+    session_id: "s-ws",
+    hook_event_name: "SessionStart",
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  const context = payload.hookSpecificOutput.additionalContext;
+  assert.match(context, /workspace/i);
+  assert.match(context, /PKG-A/);
+  assert.match(context, /PKG-B/);
+  assert.match(context, /rqml check --workspace/);
+});
+
+test("SessionStart stays dormant at a spec-less root with no workspace units", async () => {
+  const fixture = await makeFixture();
+  await installFakeRqml(fixture.bin, { workspaceUnits: [] });
+
+  const result = runHook("session-start", {
+    cwd: fixture.cwd,
+    session_id: "s-ws-empty",
+    hook_event_name: "SessionStart",
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "");
+});
+
+test("Stop fans out to rqml check --workspace and blocks on a failing unit", async () => {
+  const fixture = await makeFixture();
+  await installFakeRqml(fixture.bin, {
+    workspaceCheckExit: 2,
+    workspaceCheckMessage: "PKG-B: changed implementation",
+  });
+
+  const result = runHook("stop", {
+    cwd: fixture.cwd,
+    session_id: "s-ws-stop",
+    hook_event_name: "Stop",
+    stop_hook_active: false,
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.decision, "block");
+  assert.match(payload.reason, /workspace check failed/i);
+  assert.match(payload.reason, /Command: rqml check --workspace --strictness standard/);
+  assert.match(payload.reason, /PKG-B: changed implementation/);
+});
+
+test("Stop lets the turn end when the workspace check passes", async () => {
+  const fixture = await makeFixture();
+  await installFakeRqml(fixture.bin, { workspaceCheckExit: 0 });
+
+  const result = runHook("stop", {
+    cwd: fixture.cwd,
+    session_id: "s-ws-stop-ok",
+    hook_event_name: "Stop",
+  }, fixture.env);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "");
+});
+
 // REQ-DISCOVERY: the governing spec is the nearest enclosing one, found by
 // checking cwd then each parent directory — so a session in a subdirectory of a
 // governed project is governed, not dormant.
@@ -295,6 +375,79 @@ test("findProjectSpec returns null with no spec in cwd or any parent", () => {
     mkdirSync(sub, { recursive: true });
     assert.equal(findProjectSpec(root), null);
     assert.equal(findProjectSpec(sub), null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Nearest-enclosing precedence: a nested package spec governs its own subtree
+// even when an ancestor also holds a spec (the closer one wins).
+test("findProjectSpec: a nested package spec wins over the repository-root spec", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-nested-"));
+  try {
+    mkdirSync(path.join(root, ".git")); // bound the upward walk at the repo root
+    writeFileSync(path.join(root, "requirements.rqml"), "<rqml/>");
+    const pkg = path.join(root, "packages", "a");
+    const pkgSrc = path.join(pkg, "src");
+    mkdirSync(pkgSrc, { recursive: true });
+    writeFileSync(path.join(pkg, "requirements.rqml"), "<rqml/>");
+
+    // cwd under packages/a resolves to packages/a's spec, not the root's.
+    assert.equal(findProjectSpec(pkgSrc), path.join(pkg, "requirements.rqml"));
+    assert.equal(findProjectSpec(pkg), path.join(pkg, "requirements.rqml"));
+    // A sibling location with no nearer spec still resolves to the root spec.
+    assert.equal(findProjectSpec(root), path.join(root, "requirements.rqml"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// The repository boundary stops the walk: a spec above a .git marker does not
+// govern a session inside the repo (no escaping into a parent repo/workspace).
+test("findProjectSpec: a .git directory bounds the walk and shadows an outer spec", () => {
+  const outer = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-bound-"));
+  try {
+    writeFileSync(path.join(outer, "requirements.rqml"), "<rqml/>"); // outside the repo
+    const repo = path.join(outer, "repo");
+    const sub = path.join(repo, "src");
+    mkdirSync(sub, { recursive: true });
+    mkdirSync(path.join(repo, ".git")); // repo boundary, no spec inside the repo
+
+    assert.equal(findProjectSpec(sub), null);
+    assert.equal(findProjectSpec(repo), null);
+  } finally {
+    rmSync(outer, { recursive: true, force: true });
+  }
+});
+
+// A .git FILE (git worktrees and submodules use a file, not a directory) is an
+// equally valid boundary marker — existsSync treats both alike.
+test("findProjectSpec: a .git file bounds the walk like a .git directory", () => {
+  const outer = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-worktree-"));
+  try {
+    writeFileSync(path.join(outer, "requirements.rqml"), "<rqml/>"); // outside the worktree
+    const repo = path.join(outer, "wt");
+    const sub = path.join(repo, "src");
+    mkdirSync(sub, { recursive: true });
+    writeFileSync(path.join(repo, ".git"), "gitdir: /elsewhere/.git/worktrees/wt\n");
+
+    assert.equal(findProjectSpec(sub), null);
+    assert.equal(findProjectSpec(repo), null);
+  } finally {
+    rmSync(outer, { recursive: true, force: true });
+  }
+});
+
+// A directory holding a single non-requirements.rqml spec resolves to that file.
+test("findProjectSpec: a sole non-requirements.rqml spec is the governing spec", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "rqml-codex-sole-"));
+  try {
+    writeFileSync(path.join(root, "product.rqml"), "<rqml/>");
+    const sub = path.join(root, "src");
+    mkdirSync(sub, { recursive: true });
+
+    assert.equal(findProjectSpec(root), path.join(root, "product.rqml"));
+    assert.equal(findProjectSpec(sub), path.join(root, "product.rqml"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -390,14 +543,41 @@ async function installFakeRqml(binDir, options = {}) {
   const checkMessage = options.checkMessage || "check failed";
   const gateMessage = options.gateMessage || "gate finding";
   const logPath = options.logPath || "";
+  const workspaceUnits = Array.isArray(options.workspaceUnits) ? options.workspaceUnits : [];
+  const workspaceAmbiguous = Array.isArray(options.workspaceAmbiguous) ? options.workspaceAmbiguous : [];
+  const workspaceStatusJson = JSON.stringify({
+    command: "status",
+    root: "/workspace",
+    verdict: "pass",
+    exitCode: 0,
+    units: workspaceUnits.map((unit) => {
+      const unitPath = unit.path || `/workspace/${unit.docId}/requirements.rqml`;
+      return {
+        path: unitPath,
+        code: 0,
+        result: { docId: unit.docId, status: unit.status || "draft", path: unitPath },
+      };
+    }),
+    ambiguous: workspaceAmbiguous,
+  });
+  const workspaceCheckExit = Number(options.workspaceCheckExit || 0);
+  const workspaceCheckMessage = options.workspaceCheckMessage || "workspace check failed";
   const script = `#!/bin/sh
 if [ -n "${escapeShell(logPath)}" ]; then
   printf '%s\\n' "$*" >> "${escapeShell(logPath)}"
 fi
 case "$1" in
   status)
-    printf '%s\\n' '${statusJson.replace(/'/g, "'\\''")}'
-    exit 0
+    case "$*" in
+      *--workspace*)
+        printf '%s\\n' '${workspaceStatusJson.replace(/'/g, "'\\''")}'
+        exit 0
+        ;;
+      *)
+        printf '%s\\n' '${statusJson.replace(/'/g, "'\\''")}'
+        exit 0
+        ;;
+    esac
     ;;
   validate)
     if [ ${validateExit} -ne 0 ]; then
@@ -409,6 +589,14 @@ case "$1" in
     ;;
   check)
     case "$*" in
+      *--workspace*)
+        if [ ${workspaceCheckExit} -ne 0 ]; then
+          printf '%s\\n' '${workspaceCheckMessage.replace(/'/g, "'\\''")}' >&2
+          exit ${workspaceCheckExit}
+        fi
+        printf '✓ workspace check: 0 spec(s)\\n'
+        exit 0
+        ;;
       *--json*)
         if [ ${checkExit} -ne 0 ]; then
           printf '{"verdict":"fail","strictness":"standard","diagnostics":["%s"]}\\n' '${checkMessage.replace(/'/g, "'\\''")}'

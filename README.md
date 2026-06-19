@@ -29,6 +29,17 @@ documented Codex capabilities:
   gate (denies edits to code implementing a non-approved requirement),
   `PostToolUse` on `apply_patch`, and `Stop` with `decision: "block"` +
   `stop_hook_active` loop protection.
+- **Enforcement boundary**: the `PreToolUse` gate is a best-effort guardrail for
+  fast feedback, not a complete boundary. It fires only for the `apply_patch`,
+  `Edit`, and `Write` tools, so a write that does not go through one of those —
+  a `Bash` redirect (`> file`, `tee`, `sed -i`), an `apply_patch` issued through
+  the shell (which the host sees as a `Bash` call), or an MCP file writer — is
+  not seen by it, and even when it fires it only blocks edits to code already
+  linked to a non-approved requirement. The whole-spec boundary is the `Stop`
+  gate, which re-runs `rqml check` against the on-disk state at turn end no
+  matter how a file changed — backed by CI running the same check outside the
+  session. Because the `Stop` gate itself fails open when the CLI is missing, CI
+  is the unconditional backstop.
 - **Skills, not slash commands**: Codex custom prompts are deprecated and not
   plugin-distributable; init/status/design/plan/check/review ship as skills.
 - **Hook trust**: plugin hooks are non-managed and fire only after the
@@ -40,7 +51,10 @@ documented Codex capabilities:
 - **Monorepo discovery**: the governing spec is the nearest enclosing
   `requirements.rqml` — checking the working directory then each parent
   directory — so a session in a subdirectory of a monorepo project is governed,
-  not dormant (see `skills/rqml-authoring/monorepo.md`).
+  not dormant. At a workspace root that has no spec of its own but package specs
+  beneath it, the session is not dormant either: `SessionStart` surfaces the
+  package specs and `Stop` gates them all with `rqml check --workspace` (see
+  `skills/rqml-authoring/monorepo.md`).
 
 ## Plugin layout
 
