@@ -37,6 +37,10 @@ documented Codex capabilities:
   and the `ST-UNARMED` state in the spec.
 - **Plugin format**: `.codex-plugin/plugin.json` manifest; the repo doubles
   as its own marketplace via `.agents/plugins/marketplace.json`.
+- **Monorepo discovery**: the governing spec is the nearest enclosing
+  `requirements.rqml` — checking the working directory then each parent
+  directory — so a session in a subdirectory of a monorepo project is governed,
+  not dormant (see `skills/rqml-authoring/monorepo.md`).
 
 ## Plugin layout
 

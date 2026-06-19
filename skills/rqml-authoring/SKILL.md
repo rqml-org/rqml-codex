@@ -14,6 +14,10 @@ the canonical guide, vendored from
 [rqml-skill](https://github.com/rqml-org/rqml-skill). Read it for depth, and do
 not edit it here — the upstream craft-sync keeps it current.
 
+In a monorepo, the spec that governs a file is the **nearest enclosing**
+`requirements.rqml` — its own directory, then each parent directory. See
+**`monorepo.md`** for the scope and discovery rules.
+
 ## Non-negotiables
 
 - Validate after every edit: `rqml validate` — never leave the spec invalid.
@@ -28,4 +32,4 @@ The `rqml_*` MCP tools are available; prefer their `path` inputs over inlining
 documents. Companion skills run the five-stage process: `rqml-init`,
 `rqml-status`, `rqml-design`, `rqml-plan`, `rqml-review`, `rqml-check`.
 
-Full craft: `authoring.md` · Canonical docs: https://rqml.org/docs/
+Full craft: `authoring.md` · Monorepo scope: `monorepo.md` · Canonical docs: https://rqml.org/docs/

@@ -13,7 +13,7 @@
 
 This project uses **RQML** as the single source of truth for system intent. Familiarize yourself with the documentation at https://rqml.org/docs/user-guide/ and the development process at https://rqml.org/docs/development-process/
 
-**Specification file:** Specification lives in a single .rqml file in the root of the project - convention is `requirements.rqml`. Multiple .rqml files may be employed in multirepo projects, in such cases a .rqml spec applies to everything that is higher in the project tree, unless overridden by another .rqml file.
+**Specification file:** A specification lives in a single `.rqml` file (convention: `requirements.rqml`) in a project's own directory, alongside a `.rqml/` directory. A monorepo may hold several — one per project. A spec governs its own directory and all of its **subdirectories**, but never a **parent directory**; where one spec's directory is itself a subdirectory of another's, the nearer spec governs that subdirectory. The governing spec for any file is the **nearest enclosing** one, found by checking its directory and then each parent directory. Cross-spec references are made only through trace edges with document locators, never by where spec files are placed. See `skills/rqml-authoring/monorepo.md` and https://rqml.org/docs/monorepo.
 
 **Schema file:**
 The RQML XSD schema is at https://rqml.org/schema/rqml-2.1.0.xsd (insert correct version number). Make sure to adhere to the schema at all times and follow guidelines in schema comments. Use as much of the RQML tagset as is necessary to capture and describe high quality requirements.
