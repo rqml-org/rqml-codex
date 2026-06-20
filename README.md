@@ -1,14 +1,30 @@
-# rqml-codex
+<p align="center">
+  <img src="https://rqml.org/img/RQML_logo_transparent.png" alt="RQML logo" width="280">
+</p>
 
-Keep Codex coding from a specification, not from a fading chat thread.
+<h1 align="center">Make Codex code from the spec, not from a fading chat thread.</h1>
 
-`rqml-codex` is the RQML plugin for OpenAI Codex. It brings RQML's
-spec-first loop into a Codex session: anchor on the requirements, make changes
-against approved intent, record trace links to code and tests, and finish only
-when the same deterministic `rqml check` gate passes locally and in CI.
+<p align="center">
+  <strong>rqml-codex</strong> is the RQML plugin for
+  <a href="https://developers.openai.com/codex/">OpenAI Codex</a>. It anchors
+  every session on your requirements, traces the code and tests Codex writes
+  back to them, and lets a turn finish only when the deterministic
+  <code>rqml check</code> gate passes — locally and in CI.
+</p>
 
-The plugin is the Codex sibling of
-[rqml-claude](https://github.com/rqml-org/rqml-claude).
+<p align="center">
+  <a href="docs/quickstart.md">Quickstart</a> •
+  <a href="docs/why-rqml-codex.md">Why rqml-codex</a> •
+  <a href="docs/troubleshooting.md">Troubleshooting</a> •
+  <a href="https://rqml.org">RQML</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/npm/v/@rqml/cli?label=%40rqml%2Fcli&color=8568ab" alt="@rqml/cli on npm">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
+</p>
+
+---
 
 ## What is RQML?
 
