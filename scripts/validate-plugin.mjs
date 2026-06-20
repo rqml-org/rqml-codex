@@ -244,6 +244,17 @@ function validateDocs(manifest) {
 
   if (exists("README.md")) {
     const readme = fs.readFileSync(path.join(pluginRoot, "README.md"), "utf8");
+    for (const fragment of [
+      '<img src="https://rqml.org/img/RQML_logo_transparent.png" alt="RQML logo" width="280">',
+      '<h1 align="center">Make Codex code from the spec, not from a fading chat thread.</h1>',
+      '<a href="docs/quickstart.md">Quickstart</a>',
+      '<a href="docs/why-rqml-codex.md">Why rqml-codex</a>',
+      '<a href="docs/troubleshooting.md">Troubleshooting</a>',
+      "https://img.shields.io/npm/v/@rqml/cli",
+      "https://img.shields.io/badge/license-MIT-blue",
+    ]) {
+      if (!readme.includes(fragment)) fail(`README.md missing required header fragment: ${fragment}`);
+    }
     for (const section of [
       "## What is RQML?",
       "## What this plugin does",
