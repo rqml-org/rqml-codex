@@ -67,11 +67,17 @@ adapter over the RQML CLI and MCP server.
 
 ## First 10 minutes
 
-1. Install Node.js 18 or newer and confirm the RQML CLI works:
+1. Install Node.js 18 or newer, then install the RQML CLI (the hooks need
+   `rqml` on your PATH; without it the plugin fails open and blocks nothing):
 
    ```bash
-   npx -y @rqml/cli status
+   npm install -g @rqml/cli
+   rqml status
    ```
+
+   In an uninitialized repo, `status` may report that no spec exists. That is
+   fine; the goal is to confirm the CLI runs. (One-off without a global
+   install: `npx -y @rqml/cli status`.)
 
 2. Add this repository as a Codex plugin marketplace:
 
@@ -79,9 +85,9 @@ adapter over the RQML CLI and MCP server.
    codex plugin marketplace add rqml-org/rqml-codex
    ```
 
-   Then open the Codex plugin directory, choose the RQML marketplace entry, and
-   install or enable the plugin. For local development, this repository already
-   carries `.agents/plugins/marketplace.json`.
+   Then open the Codex plugin directory, choose the RQML marketplace entry,
+   install or enable the plugin, then trust its hooks. For local development,
+   this repository already carries `.agents/plugins/marketplace.json`.
 
 3. In the target repository, start Codex and ask:
 

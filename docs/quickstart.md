@@ -5,14 +5,17 @@ RQML gate.
 
 ## 1. Check prerequisites
 
-Use Node.js 18 or newer. The plugin calls the RQML CLI, so verify it can run:
+Use Node.js 18 or newer. The plugin calls the RQML CLI, so install it (the
+hooks need `rqml` on your PATH):
 
 ```bash
-npx -y @rqml/cli status
+npm install -g @rqml/cli
+rqml status
 ```
 
 In an uninitialized repo, `status` may report that no spec exists. That is
-fine; the goal is to confirm the CLI can be invoked.
+fine; the goal is to confirm the CLI runs. (One-off without a global install:
+`npx -y @rqml/cli status`.)
 
 ## 2. Install the plugin
 

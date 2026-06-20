@@ -8,6 +8,8 @@ found.
 Fix:
 
 ```bash
+npm install -g @rqml/cli
+# or, one-off without installing:
 npx -y @rqml/cli check
 ```
 
