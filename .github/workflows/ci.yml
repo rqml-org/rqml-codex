@@ -1,17 +1,17 @@
 name: CI
 
-# Runs the plugin test suite, including the craft drift guard
-# (tests/craft-sync.test.mjs, REQ-CRAFT-GUARD), which fails if the vendored
-# authoring craft has drifted from the canonical rqml-skill source. The hook
-# tests use a fake rqml binary, so the suite needs no toolchain install.
+# Runs the plugin test suite, installed-layout smoke, repo-owned plugin
+# validator, and the same RQML gates that local hooks surface. The hook tests
+# use a fake rqml binary, while the CI parity gates invoke @rqml/cli directly.
 #
-# Triggered on pull_request only: the sync PR validates itself and contributor
-# PRs are checked, while main is never gated on the moving upstream craft — so a
-# craft change upstream cannot turn the plugin's main red before the sync PR
-# merges (REQ-CRAFT-GUARD / DEC-VENDOR-CRAFT).
+# Triggered on pull_request and main pushes so CI remains the unconditional
+# backstop when hooks fail open or a local tool path bypasses PreToolUse.
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -25,3 +25,6 @@ jobs:
         with:
           node-version: "20"
       - run: npm test
+      - run: node scripts/validate-plugin.mjs
+      - run: npx -y @rqml/cli check
+      - run: npx -y @rqml/cli check --strictness strict

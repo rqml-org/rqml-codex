@@ -72,10 +72,11 @@ documented Codex capabilities:
 
 ```bash
 npm test
-python3 /path/to/validate_plugin.py .
+node scripts/validate-plugin.mjs
 rqml check
+rqml check --strictness strict
 ```
 
-The plugin validator needs PyYAML available to the Python interpreter running
-it. The hook tests do not require network access or an installed `@rqml/mcp`
-server.
+The installed-layout smoke test uses a fake `rqml` binary and does not require a
+real Codex host install. The craft drift guard skips, rather than fails, when
+the canonical upstream reference is unreachable.

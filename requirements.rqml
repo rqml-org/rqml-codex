@@ -665,6 +665,50 @@
           rqml-org/rqml-codex.
         </statement>
       </req>
+      <req id="REQ-CI-PARITY" type="NFR" title="CI runs the enforcement gate" status="approved" priority="must">
+        <statement>
+          Continuous integration SHALL run the plugin test suite, the
+          repository-owned plugin validator, rqml check, and rqml check
+          --strictness strict, so every pull request and main-branch push is
+          gated by the same deterministic verdicts that local hooks surface.
+        </statement>
+        <rationale>
+          GOAL-PARITY is false if CI runs only hook unit tests while local
+          enforcement blocks on rqml check; the CI workflow is the backstop for
+          fail-open hook conditions and unsupported tool paths.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-CI-PARITY">
+            <given>A pull request or main-branch push</given>
+            <when>CI runs</when>
+            <then>It fails if tests, plugin validation, rqml check, or strict rqml check fail.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-INSTALL-SMOKE" type="NFR" title="Installed-plugin smoke test" status="approved" priority="must">
+        <statement>
+          The automated test suite SHALL include a deterministic installed-layout
+          smoke test that copies the plugin to an installed plugin root, uses the
+          default hooks/hooks.json discovery path, substitutes PLUGIN_ROOT,
+          provides PLUGIN_DATA, executes bundled hook commands, and verifies
+          unarmed and armed enforcement status without requiring a real Codex
+          host install.
+        </statement>
+        <rationale>
+          Unit tests that call the hook entrypoint directly do not prove the
+          install layout, hook command strings, plugin data directory, or default
+          hook-file convention work together. A host-level install is brittle in
+          CI, so the deterministic smoke covers the plugin contract the repo
+          controls while leaving hook trust to Codex.
+        </rationale>
+        <acceptance>
+          <criterion id="CRIT-INSTALL-SMOKE">
+            <given>The plugin repository copied to an installed plugin root with PLUGIN_DATA set</given>
+            <when>The smoke test executes the commands from hooks/hooks.json</when>
+            <then>The hooks run, state is recorded under PLUGIN_DATA, status reports inactive before hooks fire, and active after SessionStart.</then>
+          </criterion>
+        </acceptance>
+      </req>
       <req id="REQ-THIN-ADAPTER" type="CR" title="No spec logic in the plugin" status="approved" priority="must">
         <statement>
           The plugin SHALL NOT reimplement any validation, coverage, drift,
@@ -1210,6 +1254,16 @@
       <steps>Run the stop-gate hook and a bare rqml check on the same fixture.</steps>
       <expected>Identical verdicts and diagnostics.</expected>
     </testCase>
+    <testCase id="TC-INSTALL-SMOKE" type="integration" title="Installed plugin layout smoke">
+      <purpose>Verify REQ-INSTALL-SMOKE.</purpose>
+      <steps>Copy the plugin to an installed plugin root, set PLUGIN_ROOT and PLUGIN_DATA, and execute the commands listed in hooks/hooks.json.</steps>
+      <expected>The default hook file is sufficient; hooks run from PLUGIN_ROOT, write state under PLUGIN_DATA, and status distinguishes inactive from active enforcement.</expected>
+    </testCase>
+    <testCase id="TC-CI-PARITY" type="inspection" title="CI runs local enforcement gates">
+      <purpose>Verify REQ-CI-PARITY.</purpose>
+      <steps>Inspect the CI workflow.</steps>
+      <expected>The workflow runs npm test, plugin validation, rqml check, and rqml check --strictness strict on pull requests and main pushes.</expected>
+    </testCase>
     <testCase id="TC-WORKSPACE" type="integration" title="Workspace fan-out at a spec-less root">
       <purpose>Verify REQ-HOOK-WORKSPACE.</purpose>
       <steps>Start a session and stop a turn at a directory with no spec of its own but package specs beneath it.</steps>
@@ -1322,6 +1376,14 @@
     <edge id="E-GUARD-PARITY" type="satisfies" confidence="0.7">
       <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
       <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-CI-PARITY" type="satisfies" confidence="0.95">
+      <from><locator><local id="REQ-CI-PARITY"/></locator></from>
+      <to><locator><local id="GOAL-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-INSTALL-SMOKE-ZERO" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-INSTALL-SMOKE"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
     </edge>
     <edge id="E-DISCOVERY-PARITY" type="satisfies" confidence="0.9">
       <from><locator><local id="REQ-DISCOVERY"/></locator></from>
@@ -1475,6 +1537,26 @@
     </edge>
     <edge id="E-THIN-TC" type="verifiedBy">
       <from><locator><local id="REQ-THIN-ADAPTER"/></locator></from>
+      <to><locator><local id="TC-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-CI-PARITY-TC" type="verifiedBy">
+      <from><locator><local id="REQ-CI-PARITY"/></locator></from>
+      <to><locator><local id="TC-CI-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-INSTALL-SMOKE-TC" type="verifiedBy">
+      <from><locator><local id="REQ-INSTALL-SMOKE"/></locator></from>
+      <to><locator><local id="TC-INSTALL-SMOKE"/></locator></to>
+    </edge>
+    <edge id="E-INSTALL-SMOKE-MANIFEST-TC" type="verifiedBy">
+      <from><locator><local id="REQ-INSTALL-SMOKE"/></locator></from>
+      <to><locator><local id="TC-MANIFEST"/></locator></to>
+    </edge>
+    <edge id="E-INSTALL-SMOKE-UNARMED-TC" type="verifiedBy">
+      <from><locator><local id="REQ-INSTALL-SMOKE"/></locator></from>
+      <to><locator><local id="TC-UNARMED"/></locator></to>
+    </edge>
+    <edge id="E-CI-PARITY-HOOK-TC" type="verifiedBy">
+      <from><locator><local id="REQ-CI-PARITY"/></locator></from>
       <to><locator><local id="TC-PARITY"/></locator></to>
     </edge>
 
@@ -1755,6 +1837,26 @@
     <edge id="E-VER-DISCOVERY" type="verifiedBy">
       <from><locator><local id="REQ-DISCOVERY"/></locator></from>
       <to><locator><external uri="tests/rqml-codex-hook.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-CI-PARITY" type="implements">
+      <from><locator><external uri=".github/workflows/ci.yml" kind="code"/></locator></from>
+      <to><locator><local id="REQ-CI-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-CI-PARITY-2" type="implements">
+      <from><locator><external uri="scripts/validate-plugin.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-CI-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-INSTALL-SMOKE" type="implements">
+      <from><locator><external uri="tests/installed-plugin-smoke.test.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-INSTALL-SMOKE"/></locator></to>
+    </edge>
+    <edge id="E-VER-INSTALL-SMOKE" type="verifiedBy">
+      <from><locator><local id="REQ-INSTALL-SMOKE"/></locator></from>
+      <to><locator><external uri="tests/installed-plugin-smoke.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-CI-PARITY" type="verifiedBy">
+      <from><locator><local id="REQ-CI-PARITY"/></locator></from>
+      <to><locator><external uri="tests/installed-plugin-smoke.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 
