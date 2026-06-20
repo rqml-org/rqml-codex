@@ -18,6 +18,7 @@ function main() {
   if (hooks) validateHooks(hooks, manifest);
   if (marketplace && manifest) validateMarketplace(marketplace, manifest);
   validateSkills(manifest);
+  validateDocs(manifest);
   validateNoPlaceholders();
 
   if (errors.length > 0) {
@@ -223,6 +224,110 @@ function validateSkills(manifest) {
       fail(`skill ${entry.name} description must be 20-160 characters`);
     }
   }
+}
+
+function validateDocs(manifest) {
+  const requiredDocs = [
+    "README.md",
+    "docs/quickstart.md",
+    "docs/why-rqml-codex.md",
+    "docs/troubleshooting.md",
+  ];
+  for (const relative of requiredDocs) {
+    if (!exists(relative)) {
+      fail(`missing required documentation: ${relative}`);
+      continue;
+    }
+    const contents = fs.readFileSync(path.join(pluginRoot, relative), "utf8");
+    validateMarkdownLinks(relative, contents);
+  }
+
+  if (exists("README.md")) {
+    const readme = fs.readFileSync(path.join(pluginRoot, "README.md"), "utf8");
+    for (const section of [
+      "## What is RQML?",
+      "## What this plugin does",
+      "## First 10 minutes",
+      "## Daily workflow",
+      "## Trust and limits",
+    ]) {
+      if (!readme.includes(section)) fail(`README.md missing required section: ${section}`);
+    }
+    for (const doc of ["docs/quickstart.md", "docs/why-rqml-codex.md", "docs/troubleshooting.md"]) {
+      if (!readme.includes(`](${doc})`)) fail(`README.md must link to ${doc}`);
+    }
+  }
+
+  if (exists("requirements.rqml")) {
+    const spec = fs.readFileSync(path.join(pluginRoot, "requirements.rqml"), "utf8");
+    for (const id of ["REQ-DOCS-CONVERSION", "REQ-DOCS-ONBOARDING", "REQ-DOCS-SURFACES"]) {
+      if (!spec.includes(`id="${id}"`)) fail(`requirements.rqml missing documentation requirement ${id}`);
+    }
+    for (const doc of ["README.md", "docs/quickstart.md", "docs/why-rqml-codex.md", "docs/troubleshooting.md"]) {
+      if (!spec.includes(`uri="${doc}"`)) fail(`requirements.rqml missing trace link for ${doc}`);
+    }
+    if (!spec.includes('uri=".codex-plugin/plugin.json"') || !spec.includes("REQ-DOCS-SURFACES")) {
+      fail("requirements.rqml must trace install-surface docs to .codex-plugin/plugin.json");
+    }
+  }
+
+  if (manifest) validateInstallSurfaceCopy(manifest);
+}
+
+function validateInstallSurfaceCopy(manifest) {
+  const iface = manifest && manifest.interface;
+  if (!iface || typeof iface !== "object") return;
+  const combined = [
+    manifest.description,
+    iface.shortDescription,
+    iface.longDescription,
+  ].filter((value) => typeof value === "string").join("\n");
+  if (!/\brequirements?\b/i.test(combined) && !/\bspec\b/i.test(combined)) {
+    fail("manifest install-surface copy must mention requirements or spec outcomes");
+  }
+  if (!/\brqml check\b/i.test(combined)) {
+    fail("manifest install-surface copy must mention the rqml check gate");
+  }
+
+  const prompts = Array.isArray(iface.defaultPrompt) ? iface.defaultPrompt : [];
+  for (const prompt of [
+    "Adopt RQML in this repo.",
+    "Draft requirements before coding this change.",
+    "Check whether this implementation still matches the spec.",
+  ]) {
+    if (!prompts.includes(prompt)) fail(`manifest interface.defaultPrompt missing: ${prompt}`);
+  }
+}
+
+function validateMarkdownLinks(relative, contents) {
+  const linkPattern = /!?\[[^\]]*\]\(([^)]+)\)/g;
+  for (const match of contents.matchAll(linkPattern)) {
+    const target = normalizeMarkdownTarget(match[1]);
+    if (!target || isExternalTarget(target) || target.startsWith("#")) continue;
+    const withoutFragment = target.split("#")[0];
+    if (!withoutFragment) continue;
+    const resolved = path.resolve(pluginRoot, path.dirname(relative), withoutFragment);
+    if (resolved !== pluginRoot && !resolved.startsWith(`${pluginRoot}${path.sep}`)) {
+      fail(`${relative} contains link escaping plugin root: ${target}`);
+      continue;
+    }
+    if (!fs.existsSync(resolved)) {
+      fail(`${relative} contains broken relative link: ${target}`);
+    }
+  }
+}
+
+function normalizeMarkdownTarget(rawTarget) {
+  const trimmed = rawTarget.trim();
+  if (trimmed.startsWith("<") && trimmed.includes(">")) {
+    return trimmed.slice(1, trimmed.indexOf(">"));
+  }
+  const match = trimmed.match(/^([^\s]+)(?:\s+["'][^"']*["'])?$/);
+  return match ? match[1] : trimmed;
+}
+
+function isExternalTarget(target) {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(target);
 }
 
 function validateNoPlaceholders() {

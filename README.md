@@ -1,72 +1,164 @@
 # rqml-codex
 
-RQML spec-first enforcement for [OpenAI Codex](https://developers.openai.com/codex/) —
-the Codex sibling of [rqml-claude](https://github.com/rqml-org/rqml-claude).
+Keep Codex coding from a specification, not from a fading chat thread.
 
-A Codex plugin that makes spec-first development enforced rather than
-voluntary: deterministic hooks anchor every session on the project spec and
-the [five-stage RQML process](https://rqml.org/docs/development-process),
-validate spec edits as they happen, and gate turn completion on the
-`rqml check` verdict. Skills and the bundled `@rqml/mcp` server give the
-agent the full read/record loop — including `rqml-design` (record decisions
-as ADRs in `.rqml/adr/`) and `rqml-plan` (maintain `.rqml/plan.md`). The
-plugin contains no requirements logic of its own — every verdict comes from
-the `rqml` CLI, so what blocks the agent locally is exactly what blocks CI.
+`rqml-codex` is the RQML plugin for OpenAI Codex. It brings RQML's
+spec-first loop into a Codex session: anchor on the requirements, make changes
+against approved intent, record trace links to code and tests, and finish only
+when the same deterministic `rqml check` gate passes locally and in CI.
 
-## Status
+The plugin is the Codex sibling of
+[rqml-claude](https://github.com/rqml-org/rqml-claude).
 
-Initial plugin implementation is present. The spec still leads the code:
-[requirements.rqml](requirements.rqml) (`RQML-CODEX-001`, draft) defines the
-required behavior, and implementation/test trace edges are recorded with
-`rqml link`.
+## What is RQML?
 
-## Design notes (vs rqml-claude)
+[RQML](https://rqml.org) is Requirements Markup Language: a human-readable,
+tool-readable way to make software intent explicit. A project keeps a durable
+requirements artifact, usually `requirements.rqml`, with goals, scenarios,
+requirements, verification, and trace links.
 
-The enforcement shape is identical — anchor, validate, gate — but adapted to
-documented Codex capabilities:
+That matters more when agents write code. Codex can implement quickly, but it
+cannot reliably infer all of the product boundaries, edge cases, non-functional
+requirements, or prior decisions that live outside the prompt. RQML gives the
+agent structured context and gives the team a deterministic way to ask: does
+the code still match the spec?
 
-- **Hooks**: Codex `SessionStart` (context injection), a `PreToolUse` approval
-  gate (denies edits to code implementing a non-approved requirement),
-  `PostToolUse` on `apply_patch`, and `Stop` with `decision: "block"` +
-  `stop_hook_active` loop protection.
-- **Enforcement boundary**: the `PreToolUse` gate is a best-effort guardrail for
-  fast feedback, not a complete boundary. It fires only for the `apply_patch`,
-  `Edit`, and `Write` tools, so a write that does not go through one of those —
-  a `Bash` redirect (`> file`, `tee`, `sed -i`), an `apply_patch` issued through
-  the shell (which the host sees as a `Bash` call), or an MCP file writer — is
-  not seen by it, and even when it fires it only blocks edits to code already
-  linked to a non-approved requirement. The whole-spec boundary is the `Stop`
-  gate, which re-runs `rqml check` against the on-disk state at turn end no
-  matter how a file changed — backed by CI running the same check outside the
-  session. Because the `Stop` gate itself fails open when the CLI is missing, CI
-  is the unconditional backstop.
-- **Skills, not slash commands**: Codex custom prompts are deprecated and not
-  plugin-distributable; init/status/design/plan/check/review ship as skills.
-- **Hook trust**: plugin hooks are non-managed and fire only after the
-  developer trusts them (`/hooks`). The plugin tracks whether enforcement is
-  actually live and says so when it is not — see `REQ-TRUST-TRANSPARENCY`
-  and the `ST-UNARMED` state in the spec.
-- **Plugin format**: `.codex-plugin/plugin.json` manifest; the repo doubles
-  as its own marketplace via `.agents/plugins/marketplace.json`.
-- **Monorepo discovery**: the governing spec is the nearest enclosing
-  `requirements.rqml` — checking the working directory then each parent
-  directory — so a session in a subdirectory of a monorepo project is governed,
-  not dormant. At a workspace root that has no spec of its own but package specs
-  beneath it, the session is not dormant either: `SessionStart` surfaces the
-  package specs and `Stop` gates them all with `rqml check --workspace` (see
-  `skills/rqml-authoring/monorepo.md`).
+The verdict is not model judgment. `rqml check` validates the spec, checks
+coverage and drift, and fails when implementation or tests no longer line up
+with the requirement trace.
+
+## What this plugin does
+
+`rqml-codex` packages the RQML loop for Codex:
+
+- **Session anchoring**: trusted hooks run `rqml status` at session start and
+  inject the current spec, coverage, and drift state into Codex context.
+- **Spec-edit feedback**: edits to `.rqml` files are validated immediately, so
+  invalid requirements are repaired in the same turn.
+- **Completion gate**: the stop hook runs `rqml check` before the turn ends.
+  Failing findings are returned to the agent as the continuation reason.
+- **Spec-first skills**: `rqml-init`, `rqml-status`, `rqml-design`,
+  `rqml-plan`, `rqml-check`, `rqml-review`, and `rqml-authoring` give Codex
+  explicit entry points for the RQML workflow.
+- **Agent tools**: the bundled `@rqml/mcp` server exposes `show`, `impact`,
+  `link`, `skeleton`, `check`, and related commands without loading the whole
+  XML document into the prompt.
+- **CI parity**: local hooks, tests, and CI all rely on the same RQML CLI
+  verdicts.
+
+The plugin contains no requirements engine of its own. It is a thin Codex
+adapter over the RQML CLI and MCP server.
+
+## First 10 minutes
+
+1. Install Node.js 18 or newer and confirm the RQML CLI works:
+
+   ```bash
+   npx -y @rqml/cli status
+   ```
+
+2. Add this repository as a Codex plugin marketplace:
+
+   ```bash
+   codex plugin marketplace add rqml-org/rqml-codex
+   ```
+
+   Then open the Codex plugin directory, choose the RQML marketplace entry, and
+   install or enable the plugin. For local development, this repository already
+   carries `.agents/plugins/marketplace.json`.
+
+3. In the target repository, start Codex and ask:
+
+   ```text
+   Use rqml-init to adopt RQML in this repo.
+   ```
+
+   The skill scaffolds or updates the RQML project, elicits real requirements,
+   and walks you through the hook trust flow.
+
+4. Trust the plugin hooks when Codex asks you to review them. Until this is
+   done, skills and MCP tools still work, but automatic anchoring and stop-time
+   enforcement are inactive.
+
+5. Run the loop once:
+
+   ```bash
+   rqml status
+   rqml show REQ-...
+   rqml impact REQ-...
+   # implement
+   rqml link REQ-... path/to/implementation
+   rqml link REQ-... path/to/test --type verifiedBy
+   rqml check
+   ```
+
+See [docs/quickstart.md](docs/quickstart.md) for the full first-green-check
+walkthrough.
+
+## Daily workflow
+
+Use Codex normally, but make the spec the starting point:
+
+```text
+Use rqml-status to re-anchor on the current spec.
+Draft requirements before coding this change.
+Use rqml-check and resolve every finding before finishing.
+```
+
+For a typical change:
+
+1. **Spec**: add or update approved requirements before implementation.
+2. **Design**: use `rqml-design` when a decision should become an ADR.
+3. **Plan**: use `rqml-plan` for staged implementation work.
+4. **Code**: read with `rqml show`, assess blast radius with `rqml impact`,
+   implement, and record `implements` links with `rqml link`.
+5. **Verify**: add tests, record `verifiedBy` links, and finish with
+   `rqml check`.
+
+## Trust and limits
+
+Codex plugin hooks are reviewed by the host. Until the developer trusts them,
+the plugin is installed but not enforcing automatically. `rqml-status` and
+`rqml-check` report that state rather than implying protection that is not
+active.
+
+The pre-edit hook is a fast feedback guardrail, not a complete security
+boundary. Some file writes can bypass pre-tool events. The authoritative gate
+is the stop hook plus CI running the same `rqml check` and strict check.
+
+If the RQML CLI is missing, hooks fail open so Codex is not bricked by a local
+tooling issue. CI remains the unconditional backstop.
+
+## Monorepos
+
+The governing spec is the nearest enclosing `requirements.rqml`. A Codex
+session inside a package is governed by that package or parent spec. At a
+workspace root with no spec of its own but package specs beneath it, the plugin
+surfaces the package specs and the stop gate uses the workspace check.
+
+See [skills/rqml-authoring/monorepo.md](skills/rqml-authoring/monorepo.md) for
+the canonical monorepo guidance bundled with the authoring skill.
+
+## Learn more
+
+- [Why rqml-codex exists](docs/why-rqml-codex.md)
+- [Quickstart](docs/quickstart.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [RQML user guide](https://rqml.org/docs/user-guide/)
+- [RQML tooling](https://rqml.org/docs/tooling/)
+- [Codex plugin docs](https://developers.openai.com/codex/plugins)
 
 ## Plugin layout
 
-- `.codex-plugin/plugin.json` - Codex plugin manifest for the `rqml` plugin.
-- `.mcp.json` - bundled `@rqml/mcp` server launched through `npx`.
-- `hooks/hooks.json` - SessionStart, PreToolUse, PostToolUse, and Stop hook bindings.
-- `hooks/rqml-codex-hook.mjs` - hook entrypoint.
-- `lib/rqml-codex-core.mjs` - deterministic adapter over the `rqml` CLI.
-- `scripts/rqml-codex.mjs` - helper used by bundled skills.
-- `skills/` - `rqml-init`, `rqml-status`, `rqml-design`, `rqml-plan`,
-  `rqml-check`, `rqml-review`, and `rqml-authoring` workflows.
-- `tests/` - hook behavior tests with a fake `rqml` binary.
+- `.codex-plugin/plugin.json`: Codex plugin manifest for the `rqml` plugin.
+- `.mcp.json`: bundled `@rqml/mcp` server launched through `npx`.
+- `hooks/hooks.json`: SessionStart, PreToolUse, PostToolUse, and Stop bindings.
+- `hooks/rqml-codex-hook.mjs`: hook entrypoint.
+- `lib/rqml-codex-core.mjs`: deterministic adapter over the `rqml` CLI.
+- `scripts/rqml-codex.mjs`: helper used by bundled skills.
+- `skills/`: RQML Codex workflows.
+- `docs/`: human-facing adoption and troubleshooting docs.
+- `tests/`: hook, installed-layout, CI, craft-sync, and docs validation tests.
 
 ## Verification
 
@@ -77,6 +169,6 @@ rqml check
 rqml check --strictness strict
 ```
 
-The installed-layout smoke test uses a fake `rqml` binary and does not require a
-real Codex host install. The craft drift guard skips, rather than fails, when
-the canonical upstream reference is unreachable.
+The installed-layout smoke test uses a fake `rqml` binary and does not require
+a real Codex host install. The craft drift guard skips, rather than fails,
+when the canonical upstream reference is unreachable.
