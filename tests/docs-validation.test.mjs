@@ -12,6 +12,13 @@ test("documentation validation accepts conversion docs and install-surface copy"
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
   const readme = await fs.readFile(path.join(repoRoot, "README.md"), "utf8");
+  assert.match(readme, /RQML_logo_transparent\.png/);
+  assert.match(readme, /<h1 align="center">Make Codex code from the spec, not from a fading chat thread\.<\/h1>/);
+  assert.match(readme, /<a href="docs\/quickstart\.md">Quickstart<\/a>/);
+  assert.match(readme, /<a href="docs\/why-rqml-codex\.md">Why rqml-codex<\/a>/);
+  assert.match(readme, /<a href="docs\/troubleshooting\.md">Troubleshooting<\/a>/);
+  assert.match(readme, /img\.shields\.io\/npm\/v\/@rqml\/cli/);
+  assert.match(readme, /img\.shields\.io\/badge\/license-MIT-blue/);
   assert.match(readme, /## What is RQML\?/);
   assert.match(readme, /## First 10 minutes/);
   assert.match(readme, /\(docs\/quickstart\.md\)/);
@@ -30,7 +37,13 @@ test("plugin validator fails when README loses a required docs link", async () =
   const copy = await copyRepo();
   const readmePath = path.join(copy, "README.md");
   const readme = await fs.readFile(readmePath, "utf8");
-  await fs.writeFile(readmePath, readme.replaceAll("(docs/quickstart.md)", "(https://example.com/quickstart)"), "utf8");
+  await fs.writeFile(
+    readmePath,
+    readme
+      .replaceAll("(docs/quickstart.md)", "(https://example.com/quickstart)")
+      .replaceAll('href="docs/quickstart.md"', 'href="https://example.com/quickstart"'),
+    "utf8",
+  );
 
   const result = runValidator(copy);
   assert.notEqual(result.status, 0);
