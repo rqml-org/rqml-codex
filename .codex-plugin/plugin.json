@@ -1,7 +1,7 @@
 {
   "name": "rqml",
   "version": "0.1.0",
-  "description": "RQML spec-first enforcement for Codex.",
+  "description": "Keep Codex aligned with RQML requirements, trace links, and deterministic checks.",
   "author": {
     "name": "RQML Maintainers",
     "url": "https://github.com/rqml-org"
@@ -20,8 +20,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "RQML",
-    "shortDescription": "Enforce RQML spec-first development in Codex.",
-    "longDescription": "Anchors Codex sessions on RQML requirements, validates spec edits, gates completion with rqml check, and exposes RQML authoring and traceability workflows.",
+    "shortDescription": "Make Codex code from requirements, not guesswork.",
+    "longDescription": "Adopt RQML in a Codex repo, anchor every session on the spec, trace code and tests back to requirements, and finish only when the deterministic rqml check gate passes.",
     "developerName": "RQML Maintainers",
     "category": "Productivity",
     "capabilities": [
@@ -35,9 +35,9 @@
     "termsOfServiceURL": "https://rqml.org/terms",
     "brandColor": "#10A37F",
     "defaultPrompt": [
-      "Show RQML status for this repo.",
-      "Run the RQML check gate.",
-      "Draft requirements for this change."
+      "Adopt RQML in this repo.",
+      "Draft requirements before coding this change.",
+      "Check whether this implementation still matches the spec."
     ]
   }
 }

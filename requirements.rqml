@@ -769,6 +769,60 @@
       </req>
     </reqPackage>
 
+    <reqPackage id="PKG-DOCS" title="Adoption documentation" ownerRef="STK-TEAMS">
+      <description>
+        Human-facing documentation that explains why RQML matters for Codex
+        work, how to adopt the plugin, and what outcomes the install surfaces
+        should promise.
+      </description>
+      <req id="REQ-DOCS-CONVERSION" type="UXR" title="Explain RQML purpose and plugin value" status="approved" priority="should">
+        <statement>
+          The repository documentation SHALL explain the purpose and promise of
+          RQML for LLM-assisted development: explicit requirements as the durable
+          artifact, structured context for agents, traceability to code and
+          tests, and deterministic drift gates with no model in the verdict path.
+          It SHALL connect that promise to the Codex plugin's concrete behavior.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-DOCS-CONVERSION">
+            <given>A developer evaluating the plugin from the repository README</given>
+            <when>They read the introductory and linked concept documentation</when>
+            <then>They understand what RQML is, why it matters for Codex work, and what the plugin does for them.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-DOCS-ONBOARDING" type="UXR" title="First-green-check onboarding" status="approved" priority="must">
+        <statement>
+          The repository documentation SHALL provide a clear path from
+          installation to the first passing RQML gate, including adoption in an
+          existing repository, hook trust, status checking, requirement-backed
+          implementation, trace linking, verification, and common troubleshooting
+          states.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-DOCS-ONBOARDING">
+            <given>A developer with Codex and Node.js available</given>
+            <when>They follow the quickstart</when>
+            <then>They can initialize or adopt RQML, arm the plugin where hooks are supported, and finish with npm test and rqml check passing.</then>
+          </criterion>
+        </acceptance>
+      </req>
+      <req id="REQ-DOCS-SURFACES" type="UXR" title="Outcome-driven install surfaces" status="approved" priority="should">
+        <statement>
+          Plugin metadata SHALL use benefit-led descriptions and default prompts
+          that invite adoption-oriented workflows rather than only describing
+          implementation mechanics.
+        </statement>
+        <acceptance>
+          <criterion id="CRIT-DOCS-SURFACES">
+            <given>The plugin manifest is inspected by the validator or install surface</given>
+            <when>The interface copy and default prompts are read</when>
+            <then>They clearly state the plugin's outcome and offer useful first actions.</then>
+          </criterion>
+        </acceptance>
+      </req>
+    </reqPackage>
+
     <reqPackage id="PKG-HOOKS" title="Enforcement hooks" ownerRef="STK-TEAMS">
       <description>
         The deterministic loop: anchor at start, validate on spec edits, gate
@@ -1269,6 +1323,16 @@
       <steps>Start a session and stop a turn at a directory with no spec of its own but package specs beneath it.</steps>
       <expected>Session start lists the units and points to rqml check --workspace; the stop runs the workspace check and blocks when a unit fails.</expected>
     </testCase>
+    <testCase id="TC-DOCS-CONVERSION" type="inspection" title="Conversion documentation coverage">
+      <purpose>Verify REQ-DOCS-CONVERSION and REQ-DOCS-ONBOARDING.</purpose>
+      <steps>Inspect the README, linked docs, and documentation validation checks.</steps>
+      <expected>The README explains RQML and the Codex plugin outcome, links to quickstart/concepts/troubleshooting docs, and the docs contain no broken relative links.</expected>
+    </testCase>
+    <testCase id="TC-DOCS-SURFACES" type="inspection" title="Install-surface copy coverage">
+      <purpose>Verify REQ-DOCS-SURFACES.</purpose>
+      <steps>Inspect the plugin manifest and validation checks.</steps>
+      <expected>The manifest has benefit-led interface copy and default prompts that invite adoption, requirements drafting, and spec conformance checks.</expected>
+    </testCase>
   </verification>
 
   <!-- ============================================================= -->
@@ -1393,9 +1457,29 @@
       <from><locator><local id="REQ-DISCOVERY"/></locator></from>
       <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
     </edge>
+    <edge id="E-DOCS-CONVERSION-LOOP" type="satisfies" confidence="0.7">
+      <from><locator><local id="REQ-DOCS-CONVERSION"/></locator></from>
+      <to><locator><local id="GOAL-ENFORCED-LOOP"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-ONBOARDING-ZERO" type="satisfies" confidence="0.8">
+      <from><locator><local id="REQ-DOCS-ONBOARDING"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-SURFACES-ZERO" type="satisfies" confidence="0.6">
+      <from><locator><local id="REQ-DOCS-SURFACES"/></locator></from>
+      <to><locator><local id="GOAL-ZERO-CONFIG"/></locator></to>
+    </edge>
     <edge id="E-DISCOVERY-UPSTREAM" type="dependsOn" confidence="0.9">
       <from><locator><local id="REQ-DISCOVERY"/></locator></from>
       <to><locator><doc uri="https://github.com/rqml-org/rqml-skill/blob/main/requirements.rqml" docId="RQML-SKILL-001" id="REQ-MONOREPO-REF" title="Canonical monorepo scope reference"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-RQML-PURPOSE" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-DOCS-CONVERSION"/></locator></from>
+      <to><locator><external uri="https://rqml.org/why-rqml/" kind="documentation" title="Why RQML"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-RQML-TOOLING" type="dependsOn" confidence="0.9">
+      <from><locator><local id="REQ-DOCS-CONVERSION"/></locator></from>
+      <to><locator><external uri="https://rqml.org/docs/tooling/" kind="documentation" title="RQML tooling"/></locator></to>
     </edge>
     <edge id="E-GUARD-DRIFT" type="mitigates" confidence="0.8">
       <from><locator><local id="REQ-CRAFT-GUARD"/></locator></from>
@@ -1558,6 +1642,18 @@
     <edge id="E-CI-PARITY-HOOK-TC" type="verifiedBy">
       <from><locator><local id="REQ-CI-PARITY"/></locator></from>
       <to><locator><local id="TC-PARITY"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-CONVERSION-TC" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-CONVERSION"/></locator></from>
+      <to><locator><local id="TC-DOCS-CONVERSION"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-ONBOARDING-TC" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-ONBOARDING"/></locator></from>
+      <to><locator><local id="TC-DOCS-CONVERSION"/></locator></to>
+    </edge>
+    <edge id="E-DOCS-SURFACES-TC" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-SURFACES"/></locator></from>
+      <to><locator><local id="TC-DOCS-SURFACES"/></locator></to>
     </edge>
 
     <!-- Cross-document dependencies on the upstream toolchain spec -->
@@ -1857,6 +1953,46 @@
     <edge id="E-VER-CI-PARITY" type="verifiedBy">
       <from><locator><local id="REQ-CI-PARITY"/></locator></from>
       <to><locator><external uri="tests/installed-plugin-smoke.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-CONVERSION-README" type="implements">
+      <from><locator><external uri="README.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-DOCS-CONVERSION"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-CONVERSION-CONCEPTS" type="implements">
+      <from><locator><external uri="docs/why-rqml-codex.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-DOCS-CONVERSION"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-ONBOARDING-README" type="implements">
+      <from><locator><external uri="README.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-DOCS-ONBOARDING"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-ONBOARDING-QUICKSTART" type="implements">
+      <from><locator><external uri="docs/quickstart.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-DOCS-ONBOARDING"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-ONBOARDING-TROUBLE" type="implements">
+      <from><locator><external uri="docs/troubleshooting.md" kind="doc"/></locator></from>
+      <to><locator><local id="REQ-DOCS-ONBOARDING"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-SURFACES" type="implements">
+      <from><locator><external uri=".codex-plugin/plugin.json" kind="code"/></locator></from>
+      <to><locator><local id="REQ-DOCS-SURFACES"/></locator></to>
+    </edge>
+    <edge id="E-IMPL-DOCS-VALIDATOR" type="implements">
+      <from><locator><external uri="scripts/validate-plugin.mjs" kind="code"/></locator></from>
+      <to><locator><local id="REQ-DOCS-SURFACES"/></locator></to>
+    </edge>
+    <edge id="E-VER-DOCS-CONVERSION" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-CONVERSION"/></locator></from>
+      <to><locator><external uri="tests/docs-validation.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-DOCS-ONBOARDING" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-ONBOARDING"/></locator></from>
+      <to><locator><external uri="tests/docs-validation.test.mjs" kind="test"/></locator></to>
+    </edge>
+    <edge id="E-VER-DOCS-SURFACES" type="verifiedBy">
+      <from><locator><local id="REQ-DOCS-SURFACES"/></locator></from>
+      <to><locator><external uri="tests/docs-validation.test.mjs" kind="test"/></locator></to>
     </edge>
   </trace>
 
