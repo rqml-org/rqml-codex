@@ -41,7 +41,9 @@ The skill should:
 
 - create or update `requirements.rqml`;
 - elicit real project goals, requirements, acceptance criteria, and risks;
-- add or update `AGENTS.md` guidance where appropriate;
+- scaffold `AGENTS.md`, or merge the RQML guidance into an existing one as a
+  managed block — your own content is preserved, and re-running `rqml init`
+  refreshes the block in place;
 - explain how to trust the plugin hooks.
 
 Do not start implementation until the new requirements are reviewed and
