@@ -1,5 +1,5 @@
 <!-- Canonical RQML authoring craft. Source of truth: rqml-org/rqml-skill (references/authoring.md). -->
-<!-- canonical-version: 1 -->
+<!-- canonical-version: 2 -->
 
 # RQML authoring craft
 
@@ -18,9 +18,11 @@ section when it earns its keep, not before.
 
 - **Validate after every edit**: `rqml validate` (XSD + referential integrity).
   Never leave the document invalid between turns.
-- **Never hand-edit trace edges** for implementation or verification links —
-  `rqml link <REQ-ID> <path>` (and `--type verifiedBy` for tests) writes a
-  correct edge and records the drift baseline.
+- **Never hand-edit trace edges** — `rqml link <from> <to> --type <type>`
+  records any edge (satisfies, refines, implements, verifiedBy, …) between two
+  artifact ids or a file path, and records the drift baseline where one
+  applies. If the installed CLI rejects the type (older versions cover only
+  implements/verifiedBy), hand-author that one edge and validate.
 - **Never invent element shapes** — `rqml skeleton <req|edge|testCase|stateMachine>`
   emits schema-valid snippets to fill in.
 - **Read before you write**: `rqml show <ID>` for one artifact with its trace
@@ -75,10 +77,19 @@ something to keep correct.
 ## Traceability
 
 - Every requirement should `satisfies` a goal or scenario (otherwise it is an
-  orphan — the coverage report will say so). Satisfies edges may be hand-authored.
+  orphan — the coverage report will say so): `rqml link REQ-X GOAL-Y --type satisfies`.
 - `implements` edges run code → requirement; `verifiedBy` runs requirement →
-  test. Record both with `rqml link`, never manually — it also stores the drift
-  baseline so later edits to a linked file are detected.
+  test. `rqml link` orients these two automatically whichever order you give
+  the endpoints, and stores the drift baseline so later edits to a linked file
+  are detected. Every other type is recorded exactly from → to.
+- Edges you record are stamped `status="draft"` with a `createdBy` identity —
+  that is the curation loop: the developer reviews and approves them later, so
+  never stamp `--status approved` on your own edges.
+- Make the judgment behind an edge inspectable when there is one: `--notes`
+  for *why* the relationship holds when it isn't obvious from the two titles,
+  `--confidence` when the mapping is partial or inferred, `--tags`
+  (e.g. safety, compliance) when a domain filters on them. Skip all three for
+  self-evident edges.
 - Cross-document references use doc locators; external artifacts use external
   locators with a URI.
 
