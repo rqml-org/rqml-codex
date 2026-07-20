@@ -271,13 +271,19 @@ function validateDocs(manifest) {
 
   if (exists("requirements.rqml")) {
     const spec = fs.readFileSync(path.join(pluginRoot, "requirements.rqml"), "utf8");
+    // A doc is traced when it appears as a compact trace endpoint value
+    // (from=/to=, RQML 2.2.0) or the legacy nested locator uri= (≤2.1.0). A
+    // schemeless slashless path (e.g. README.md) serializes with a "./" prefix
+    // in the compact form, so accept that too.
+    const tracesDoc = (doc) =>
+      spec.includes(`="${doc}"`) || spec.includes(`="./${doc}"`);
     for (const id of ["REQ-DOCS-CONVERSION", "REQ-DOCS-ONBOARDING", "REQ-DOCS-SURFACES"]) {
       if (!spec.includes(`id="${id}"`)) fail(`requirements.rqml missing documentation requirement ${id}`);
     }
     for (const doc of ["README.md", "docs/quickstart.md", "docs/why-rqml-codex.md", "docs/troubleshooting.md"]) {
-      if (!spec.includes(`uri="${doc}"`)) fail(`requirements.rqml missing trace link for ${doc}`);
+      if (!tracesDoc(doc)) fail(`requirements.rqml missing trace link for ${doc}`);
     }
-    if (!spec.includes('uri=".codex-plugin/plugin.json"') || !spec.includes("REQ-DOCS-SURFACES")) {
+    if (!tracesDoc(".codex-plugin/plugin.json") || !spec.includes("REQ-DOCS-SURFACES")) {
       fail("requirements.rqml must trace install-surface docs to .codex-plugin/plugin.json");
     }
   }
