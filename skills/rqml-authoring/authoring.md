@@ -1,5 +1,5 @@
 <!-- Canonical RQML authoring craft. Source of truth: rqml-org/rqml-skill (references/authoring.md). -->
-<!-- canonical-version: 2 -->
+<!-- canonical-version: 3 -->
 
 # RQML authoring craft
 
@@ -21,8 +21,12 @@ section when it earns its keep, not before.
 - **Never hand-edit trace edges** — `rqml link <from> <to> --type <type>`
   records any edge (satisfies, refines, implements, verifiedBy, …) between two
   artifact ids or a file path, and records the drift baseline where one
-  applies. If the installed CLI rejects the type (older versions cover only
-  implements/verifiedBy), hand-author that one edge and validate.
+  applies. It emits the serialization the document's schema version requires,
+  which hand-authoring cannot be relied on to get right.
+- **Never hand-upgrade a spec's schema version** — `rqml migrate` rewrites a
+  2.0.1 or 2.1.0 document to the current one (`--dry-run` previews it). It
+  refuses rather than guessing when the document has integrity problems, and
+  leaves the drift baseline alone so existing drift stays visible.
 - **Never invent element shapes** — `rqml skeleton <req|edge|testCase|stateMachine>`
   emits schema-valid snippets to fill in.
 - **Read before you write**: `rqml show <ID>` for one artifact with its trace
@@ -90,8 +94,11 @@ something to keep correct.
   `--confidence` when the mapping is partial or inferred, `--tags`
   (e.g. safety, compliance) when a domain filters on them. Skip all three for
   self-evident edges.
-- Cross-document references use doc locators; external artifacts use external
-  locators with a URI.
+- An endpoint's kind follows the shape of its value: a bare id is local, an
+  `rqml:<doc-uri>#<id>` reference points into another RQML document (add
+  `;version=`, `;git=`, or `;docId=` to pin it), and any other scheme URI or
+  relative path containing `/` is an external artifact. A path with no `/`
+  needs a `./` prefix or it reads as an id — `rqml link` handles that.
 
 ## Finishing
 
