@@ -1,5 +1,5 @@
 <!-- Canonical RQML monorepo spec-scope & discovery model. Source of truth: rqml-org/rqml-skill (references/monorepo.md). -->
-<!-- canonical-version: 1 -->
+<!-- canonical-version: 2 -->
 
 # RQML in a monorepo: spec scope and discovery
 
@@ -43,9 +43,13 @@ nearest enclosing spec) or at the repository root. Pass an explicit path or
 ## Information between specs
 
 A requirement in one spec refers to a requirement in another **only** through a trace
-edge with a document locator (the other spec's URI + id) — never by where spec files
-are placed. Placement decides governance scope and nothing else; every cross-spec
-relationship is an explicit trace edge.
+edge that addresses the other document — its URI plus the target id, optionally pinned
+to a version or commit — never by where spec files are placed. Placement decides
+governance scope and nothing else; every cross-spec relationship is an explicit trace
+edge.
+
+In the current schema that endpoint is written `rqml:<doc-uri>#<id>`, with optional
+`;version=`, `;git=`, and `;docId=` pins.
 
 ## Deciding whether to add a nested spec
 
