@@ -1,7 +1,7 @@
 # rqml-codex quickstart
 
-This walkthrough gets a repository from "plugin installed" to the first green
-RQML gate.
+This walkthrough gets a repository from "plugin installed" to its first
+passing `rqml check`.
 
 ## 1. Check prerequisites
 

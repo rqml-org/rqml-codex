@@ -114,8 +114,8 @@ adapter over the RQML CLI and MCP server.
    rqml check
    ```
 
-See [docs/quickstart.md](docs/quickstart.md) for the full first-green-check
-walkthrough.
+See [docs/quickstart.md](docs/quickstart.md) for the full walkthrough to a
+first passing check.
 
 ## Daily workflow
 
