@@ -1176,6 +1176,68 @@
           compatible with.
         </statement>
       </req>
+      <req id="REQ-CLI-FLOOR" type="IR" title="Toolchain version floor check" status="approved" priority="must">
+        <statement>
+          When the rqml CLI is present but older than the minimum version the
+          plugin honours (the vendored ecosystem floor, or a higher one this
+          plugin declares under REQ-CLI-CONTRACT), the plugin SHALL warn at most
+          once per session, naming the detected version, the required minimum,
+          and the upgrade command; it SHALL NOT block anything.
+        </statement>
+        <rationale>
+          A declared compatibility range that nothing reads is documentation,
+          not a contract: on an under-floor toolchain the developer gets an
+          unexplained command failure instead of the one line that fixes it.
+          The obligation is deliberately a floor and not a staleness notice —
+          the plugin warns when the installed CLI cannot do what the plugin
+          asks of it, never merely because a newer release exists. A gate that
+          nags about cosmetic staleness on a hook that runs every session
+          spends the trust its blocking verdicts depend on.
+        </rationale>
+        <notes>
+          The minimum is not this plugin's to invent: it is the ecosystem floor
+          declared once upstream and published at
+          https://rqml.org/toolchain-floor.json. The plugin vendors a committed
+          copy so its own check stays offline, and re-verifies that copy against
+          the published document in CI. The plugin MAY declare a higher floor in
+          its own manifest when it genuinely needs a newer capability, never a
+          lower one. The floor moves when integrations begin relying on a new
+          capability, not when a release adds one, so a new toolchain version on
+          its own never warns anybody. CRIT-FLOOR-UNREADABLE stays as defence in
+          depth: a CLI old enough to be under the floor may also predate the
+          version-output contract. Where the hooks are not live at all
+          (ST-UNARMED), no warning reaches the developer — that is the unarmed
+          posture REQ-TRUST-TRANSPARENCY already covers, not a second obligation
+          here.
+        </notes>
+        <acceptance>
+          <criterion id="CRIT-FLOOR-BELOW">
+            <given>A project with a spec and an rqml CLI older than the declared minimum</given>
+            <when>The agent works through a session and the turn stops</when>
+            <then>Exactly one warning is shown naming the detected version, the required minimum, and the upgrade command; and nothing is blocked.</then>
+          </criterion>
+          <criterion id="CRIT-FLOOR-SATISFIED">
+            <given>An rqml CLI at or above the declared minimum, with a newer release published upstream</given>
+            <when>The agent works through a session and the turn stops</when>
+            <then>No version warning is shown and no network request is made.</then>
+          </criterion>
+          <criterion id="CRIT-FLOOR-UNREADABLE">
+            <given>An rqml CLI whose version cannot be read or parsed</given>
+            <when>The floor check runs</when>
+            <then>The plugin proceeds silently, exactly as when the minimum is satisfied.</then>
+          </criterion>
+          <criterion id="CRIT-FLOOR-VENDORED">
+            <given>A vendored floor that differs from the published ecosystem declaration</given>
+            <when>CI runs</when>
+            <then>The check fails and names the divergence; and when the published document is unreachable the check is skipped rather than failing spuriously.</then>
+          </criterion>
+          <criterion id="CRIT-FLOOR-OVERRIDE">
+            <given>A plugin-declared floor below the vendored ecosystem floor</given>
+            <when>CI runs</when>
+            <then>The check fails: a plugin may raise its floor above the ecosystem value, never lower it.</then>
+          </criterion>
+        </acceptance>
+      </req>
       <req id="REQ-NO-RESIDUE" type="NFR" title="Clean uninstall" status="approved" priority="should">
         <statement>
           Uninstalling the plugin SHALL leave the project untouched: no files
@@ -1298,6 +1360,16 @@
       <steps>Remove the rqml CLI from PATH in a governed fixture; work and stop.</steps>
       <expected>One warning, zero blocks.</expected>
     </testCase>
+    <testCase id="TC-FLOOR" type="integration" title="Under-floor toolchain warns once and blocks nothing">
+      <purpose>Verify REQ-CLI-FLOOR.</purpose>
+      <steps>Point the fake rqml bin in tests/ at a version below the declared minimum; work and stop. Repeat with a version above the minimum, and with a version string that cannot be parsed.</steps>
+      <expected>Below the floor: one warning naming detected version, minimum, and upgrade command, zero blocks. Above it, and unparseable: silence.</expected>
+    </testCase>
+    <testCase id="TC-FLOOR-SYNC" type="unit" title="Vendored floor tracks the ecosystem declaration">
+      <purpose>Verify REQ-CLI-FLOOR criteria CRIT-FLOOR-VENDORED and CRIT-FLOOR-OVERRIDE.</purpose>
+      <steps>Run the floor guard against a vendored copy that differs from the published declaration; against an unreachable published source; and against a plugin-declared floor below the vendored one.</steps>
+      <expected>Divergence fails and names it; unreachable skips; a below-ecosystem plugin floor fails, an above-ecosystem one passes.</expected>
+    </testCase>
     <testCase id="TC-UNARMED" type="integration" title="Untrusted hooks reported honestly">
       <purpose>Verify REQ-TRUST-TRANSPARENCY.</purpose>
       <steps>Install the plugin in a governed fixture without trusting its hooks; invoke the status skill.</steps>
@@ -1360,6 +1432,7 @@
     <edge id="E-MCP-ZERO" type="satisfies" from="REQ-MCP-BUNDLED" to="GOAL-ZERO-CONFIG" confidence="0.8"/>
     <edge id="E-FAILOPEN-SIGNAL" type="satisfies" from="REQ-HOOK-FAIL-OPEN" to="QGOAL-SIGNAL" confidence="0.8"/>
     <edge id="E-DIAG-SIGNAL" type="satisfies" from="REQ-HOOK-DIAGNOSTICS" to="QGOAL-SIGNAL" confidence="0.9"/>
+    <edge id="E-FLOOR-SIGNAL" type="satisfies" from="REQ-CLI-FLOOR" to="QGOAL-SIGNAL" confidence="0.8"/>
     <edge id="E-SKILL-INIT-ZERO" type="satisfies" from="REQ-SKILL-INIT" to="GOAL-ZERO-CONFIG" confidence="0.7"/>
     <edge id="E-SKILL-STATUS-LOOP" type="satisfies" from="REQ-SKILL-STATUS" to="GOAL-ENFORCED-LOOP" confidence="0.7"/>
     <edge id="E-SKILL-CHECK-LOOP" type="satisfies" from="REQ-SKILL-CHECK" to="GOAL-ENFORCED-LOOP" confidence="0.8"/>
@@ -1390,6 +1463,7 @@
     <edge id="E-GATE-DEC" type="dependsOn" from="REQ-HOOK-STOP-GATE" to="DEC-HOOKS-NOT-PROMPTS" confidence="1"/>
     <edge id="E-THIN-DEC" type="dependsOn" from="REQ-THIN-ADAPTER" to="DEC-THIN-ADAPTER" confidence="1"/>
     <edge id="E-FAILOPEN-DEC" type="dependsOn" from="REQ-HOOK-FAIL-OPEN" to="DEC-FAIL-OPEN" confidence="1"/>
+    <edge id="E-FLOOR-DEC" type="dependsOn" from="REQ-CLI-FLOOR" to="DEC-FAIL-OPEN" confidence="1"/>
     <edge id="E-MARKET-DEC" type="dependsOn" from="REQ-MARKETPLACE" to="DEC-MARKETPLACE" confidence="1"/>
     <edge id="E-MCP-DEC" type="dependsOn" from="REQ-MCP-BUNDLED" to="DEC-CLI-FOR-HOOKS" confidence="0.9"/>
     <edge id="E-SKILL-INIT-DEC" type="dependsOn" from="REQ-SKILL-INIT" to="DEC-SKILLS-NOT-CUSTOM-PROMPTS" confidence="1"/>
@@ -1402,6 +1476,7 @@
     <edge id="E-STRICT-FALSEBLOCK" type="mitigates" from="REQ-STRICTNESS-RESPECT" to="RISK-FALSE-BLOCK" confidence="0.8"/>
     <edge id="E-DIAG-FALSEBLOCK" type="mitigates" from="REQ-HOOK-DIAGNOSTICS" to="RISK-FALSE-BLOCK" confidence="0.7"/>
     <edge id="E-CONTRACT-DRIFT" type="mitigates" from="REQ-CLI-CONTRACT" to="RISK-CONTRACT-DRIFT" confidence="0.9"/>
+    <edge id="E-FLOOR-DRIFT" type="mitigates" from="REQ-CLI-FLOOR" to="RISK-CONTRACT-DRIFT" confidence="0.85"/>
     <edge id="E-ANCHOR-AGENTDRIFT" type="mitigates" from="REQ-HOOK-ANCHOR" to="OBS-AGENT-DRIFT" confidence="0.8"/>
     <edge id="E-TRUST-UNTRUSTED" type="mitigates" from="REQ-TRUST-TRANSPARENCY" to="OBS-UNTRUSTED-HOOKS" confidence="0.9"/>
     <edge id="E-TRUST-DELIVERY" type="mitigates" from="REQ-TRUST-TRANSPARENCY" to="RISK-HOOK-DELIVERY" confidence="0.8"/>
@@ -1417,6 +1492,8 @@
     <edge id="E-WORKSPACE-TC" type="verifiedBy" from="REQ-HOOK-WORKSPACE" to="TC-WORKSPACE"/>
     <edge id="E-DORMANT-TC" type="verifiedBy" from="REQ-DORMANT" to="TC-DORMANT"/>
     <edge id="E-FAILOPEN-TC" type="verifiedBy" from="REQ-HOOK-FAIL-OPEN" to="TC-FAIL-OPEN"/>
+    <edge id="E-FLOOR-TC" type="verifiedBy" from="REQ-CLI-FLOOR" to="TC-FLOOR"/>
+    <edge id="E-FLOOR-SYNC-TC" type="verifiedBy" from="REQ-CLI-FLOOR" to="TC-FLOOR-SYNC"/>
     <edge id="E-TRUST-TC" type="verifiedBy" from="REQ-TRUST-TRANSPARENCY" to="TC-UNARMED"/>
     <edge id="E-THIN-TC" type="verifiedBy" from="REQ-THIN-ADAPTER" to="TC-PARITY"/>
     <edge id="E-CI-PARITY-TC" type="verifiedBy" from="REQ-CI-PARITY" to="TC-CI-PARITY"/>
@@ -1434,6 +1511,8 @@
     <edge id="E-DESIGN-UPSTREAM" type="dependsOn" from="REQ-SKILL-DESIGN" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-ADR-CONVENTION;docId=RQML-SELF-001" toTitle="Design decisions recorded as ADRs" confidence="1"/>
     <edge id="E-PLAN-UPSTREAM" type="dependsOn" from="REQ-SKILL-PLAN" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-PLAN-CONVENTION;docId=RQML-SELF-001" toTitle="Implementation plan in .rqml/plan.md" confidence="1"/>
     <edge id="E-CONTRACT-UPSTREAM" type="dependsOn" from="REQ-CLI-CONTRACT" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-CLI-EXIT-CODES;docId=RQML-SELF-001" toTitle="Stable exit codes" confidence="1"/>
+    <edge id="E-FLOOR-UPSTREAM" type="dependsOn" from="REQ-CLI-FLOOR" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-TOOLCHAIN-FLOOR;docId=RQML-SELF-001" toTitle="Declared toolchain floor for integrations" confidence="1"/>
+    <edge id="E-FLOOR-UPSTREAM-VERSION" type="dependsOn" from="REQ-CLI-FLOOR" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-CLI-VERSION;docId=RQML-SELF-001" toTitle="Version output is contract" confidence="1"/>
     <edge id="E-MCP-UPSTREAM" type="dependsOn" from="REQ-MCP-BUNDLED" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-MCP-TOOLS;docId=RQML-SELF-001" toTitle="MCP toolset" confidence="1"/>
     <edge id="E-PLUGIN-PRIMITIVES" type="dependsOn" from="REQ-THIN-ADAPTER" to="rqml:https://github.com/rqml-org/rqml/blob/main/requirements.rqml#REQ-ENFORCE-PRIMITIVES;docId=RQML-SELF-001" toTitle="Enforcement primitives" confidence="0.95"/>
 
@@ -1520,6 +1599,10 @@
     <edge id="E-VER-DOCS-CONVERSION" type="verifiedBy" from="REQ-DOCS-CONVERSION" to="tests/docs-validation.test.mjs" toKind="test"/>
     <edge id="E-VER-DOCS-ONBOARDING" type="verifiedBy" from="REQ-DOCS-ONBOARDING" to="tests/docs-validation.test.mjs" toKind="test"/>
     <edge id="E-VER-DOCS-SURFACES" type="verifiedBy" from="REQ-DOCS-SURFACES" to="tests/docs-validation.test.mjs" toKind="test"/>
+    <edge id="E-IMPL-FLOOR-CORE" type="implements" from="lib/rqml-codex-core.mjs" fromKind="code" fromTitle="Floor resolution, version read, session warning" to="REQ-CLI-FLOOR" status="draft" createdBy="rqml"/>
+    <edge id="E-IMPL-FLOOR-VENDORED" type="implements" from="./toolchain-floor.json" fromKind="config" fromTitle="Vendored ecosystem floor" to="REQ-CLI-FLOOR" status="draft" createdBy="rqml"/>
+    <edge id="E-IMPL-FLOOR-DECL" type="implements" from="./package.json#rqmlToolchain" fromKind="config" fromTitle="Plugin floor declaration and override site" to="REQ-CLI-FLOOR" status="draft" createdBy="rqml"/>
+    <edge id="E-VER-FLOOR" type="verifiedBy" from="REQ-CLI-FLOOR" to="tests/toolchain-floor.test.mjs" toKind="test" toTitle="Floor check and sync guard tests" status="draft" createdBy="rqml"/>
   </trace>
 
   <!-- ============================================================= -->
