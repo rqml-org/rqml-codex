@@ -9,5 +9,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "rqmlToolchain": {
+    "floor": "inherit",
+    "floorSource": "./toolchain-floor.json — vendored from https://rqml.org/toolchain-floor.json; raise this to a semantic version only when the plugin needs a newer capability, never below the ecosystem floor (REQ-CLI-FLOOR)",
+    "contract": "exit codes 0/1/2/64; status/check --json report shapes"
   }
 }
